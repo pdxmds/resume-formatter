@@ -224,7 +224,7 @@ function buildState(frontmatter, sections, fileName) {
   state.sections = sections.map((section) => ({
     id: generateId(),
     type: section.type,
-    title: getSectionTitle(section.type),
+    title: section.title || getSectionTitle(section.type),
     entries: (section.entries || []).map((entry) => ({
       id: generateId(),
       name: entry.name || "",

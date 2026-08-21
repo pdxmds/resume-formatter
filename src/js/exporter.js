@@ -30,15 +30,11 @@ function serializeStateToMarkdown(state) {
   });
   lines.push("---", "");
 
-  const sectionTitles = {
-    education: "教育经历",
-    experience: "实习经历",
-    projects: "项目经历",
-    skills: "技能",
-  };
-
   (state.sections || []).forEach((section) => {
-    lines.push(`## ${sectionTitles[section.type] || cleanScalar(section.title) || section.type}`, "");
+    const defaultTitle = getSectionTitle(section.type);
+    const title = cleanScalar(section.title);
+    lines.push(`## ${defaultTitle}`, "");
+    if (title && title !== defaultTitle) lines.push(`title: ${title}`, "");
     (section.entries || []).forEach((entry) => {
       if (section.type !== "skills") {
         lines.push(`### ${cleanScalar(entry.name)}`);
@@ -90,6 +86,7 @@ function serializeStateToJson(state) {
     },
     sections: (state.sections || []).map((section) => ({
       type: section.type,
+      title: section.title || getSectionTitle(section.type),
       entries: (section.entries || []).map((entry) => ({
         name: entry.name || "",
         role: entry.role || "",

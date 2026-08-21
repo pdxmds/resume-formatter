@@ -112,6 +112,7 @@ function getState() {
  */
 function setState(newState) {
   window.__resumeState = newState;
+  if (typeof resetUndoHistory === "function") resetUndoHistory();
 }
 
 /**

@@ -11,6 +11,8 @@ let _formatBulletIds = [];
 const _undoStack = [];
 const UNDO_LIMIT = 100;
 let _lastInputHistory = null;
+let _focusedHistoryTarget = null;
+let _focusWithoutHistoryTarget = null;
 
 function isDirty() { return _dirty; }
 
@@ -33,6 +35,22 @@ function initEditor() {
   const content = document.getElementById("resume-content");
   if (!content) return;
 
+  const undoButton = document.getElementById("btn-undo");
+  if (undoButton) undoButton.addEventListener("click", undoEditorChange);
+
+  // Keep one pre-edit snapshot even on browsers that do not emit beforeinput
+  // consistently for contenteditable fields.
+  content.addEventListener("focusin", (e) => {
+    const editable = e.target.closest("[contenteditable]");
+    if (!editable || _focusedHistoryTarget === editable) return;
+    if (editable === _focusWithoutHistoryTarget) {
+      _focusWithoutHistoryTarget = null;
+      return;
+    }
+    pushUndoState();
+    _focusedHistoryTarget = editable;
+  });
+
   document.addEventListener("keydown", (e) => {
     if ((e.ctrlKey || e.metaKey) && !e.altKey && e.key.toLowerCase() === "z" && !e.shiftKey) {
       if (e.target.matches("input, textarea, select") && !e.target.closest("#resume-content")) return;
@@ -43,8 +61,17 @@ function initEditor() {
 
   content.addEventListener("beforeinput", (e) => {
     if (!e.target.closest("[contenteditable]") || e.inputType === "historyUndo") return;
+    if (e.target === _focusedHistoryTarget) {
+      _focusedHistoryTarget = null;
+      _lastInputHistory = {
+        key: e.target.dataset.bulletId || e.target.dataset.profileField || e.target.dataset.entryField || e.target.dataset.sectionId || "editor",
+        type: e.inputType,
+        time: Date.now(),
+      };
+      return;
+    }
     const now = Date.now();
-    const key = e.target.dataset.bulletId || e.target.dataset.profileField || e.target.dataset.entryField || "editor";
+    const key = e.target.dataset.bulletId || e.target.dataset.profileField || e.target.dataset.entryField || e.target.dataset.sectionId || "editor";
     const canMerge = _lastInputHistory && _lastInputHistory.key === key
       && _lastInputHistory.type === e.inputType && now - _lastInputHistory.time < 800;
     if (!canMerge) pushUndoState();
@@ -74,6 +101,7 @@ function initEditor() {
   // Sync on blur
   content.addEventListener("blur", (e) => {
     syncElementToState(e.target);
+    if (e.target === _focusedHistoryTarget) _focusedHistoryTarget = null;
   }, true);
 
   // Keep state current while typing so selection formatting never uses stale text.
@@ -175,15 +203,17 @@ function updateBulletStyleControl(control) {
 function pushUndoState() {
   _undoStack.push(deepClone(getState()));
   if (_undoStack.length > UNDO_LIMIT) _undoStack.shift();
+  updateUndoButton();
 }
 
 function undoEditorChange() {
   const previous = _undoStack.pop();
+  updateUndoButton();
   if (!previous) {
     showToast("没有可撤回的操作。", "info");
     return;
   }
-  setState(previous);
+  window.__resumeState = previous;
   renderResume(previous);
   markDirty();
   _formatTarget = null;
@@ -191,7 +221,28 @@ function undoEditorChange() {
   _formatOffsets = null;
   _formatBulletIds = [];
   _lastInputHistory = null;
+  _focusedHistoryTarget = null;
+  _focusWithoutHistoryTarget = null;
   requestAnimationFrame(() => updateA4Status());
+}
+
+function updateUndoButton() {
+  const button = document.getElementById("btn-undo");
+  if (button) button.disabled = _undoStack.length === 0;
+}
+
+function resetUndoHistory() {
+  _undoStack.length = 0;
+  _lastInputHistory = null;
+  _focusedHistoryTarget = null;
+  _focusWithoutHistoryTarget = null;
+  updateUndoButton();
+}
+
+function focusWithoutUndoSnapshot(element) {
+  if (!element) return;
+  _focusWithoutHistoryTarget = element;
+  element.focus();
 }
 
 function applySelectionFormat(action, amount = 0) {
@@ -815,7 +866,7 @@ function addBulletAfter(bulletSpan) {
         for (const b of entry.bullets) listEl.appendChild(renderBulletRow(b));
         // Focus new bullet
         const newSpan = listEl.querySelector(`[data-bullet-id="${newBullet.id}"]`);
-        if (newSpan) newSpan.focus();
+        focusWithoutUndoSnapshot(newSpan);
       }
 
       markDirty();
@@ -848,7 +899,7 @@ function addBullet(entryId) {
         const newLi = renderBulletRow(newBullet);
         listEl.insertBefore(newLi, addRow);
         const newSpan = newLi.querySelector(`[data-bullet-id="${newBullet.id}"]`);
-        if (newSpan) newSpan.focus();
+        focusWithoutUndoSnapshot(newSpan);
       }
 
       markDirty();
@@ -909,7 +960,7 @@ function addEntry(sectionId) {
     sectionEl.insertBefore(renderEntry(newEntry), addRow);
     // Focus name field
     const nameSpan = sectionEl.querySelector(`[data-entry-id="${newEntry.id}"] .entry-name`);
-    if (nameSpan) nameSpan.focus();
+    focusWithoutUndoSnapshot(nameSpan);
   }
 
   markDirty();
@@ -994,9 +1045,20 @@ function syncElementToState(el) {
       for (const entry of section.entries) {
         if (entry.id === entryId) {
           entry[field === "date" ? "date" : field] = raw;
+          if (field === "date") el.dataset.empty = raw ? "false" : "true";
           return;
         }
       }
+    }
+    return;
+  }
+
+  // Section title
+  if (el.dataset.sectionId) {
+    const section = state.sections.find((item) => item.id === el.dataset.sectionId);
+    if (section) {
+      section.title = raw || getSectionTitle(section.type);
+      el.dataset.empty = raw ? "false" : "true";
     }
     return;
   }

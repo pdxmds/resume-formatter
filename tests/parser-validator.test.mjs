@@ -88,3 +88,26 @@ date: 2025.01-2025.03
   assert.ok(tokens.some((token) => token.href === "https://example.com"));
   assert.ok(tokens.some((token) => token.type === "strong" && token.value === "核心流程"));
 });
+
+test("自定义栏目标题会保留在 Resume State 中", () => {
+  const markdown = `---
+schema_version: 1
+resume_name: 标题测试
+name: 示例用户
+phone: 1xx-xxxx-xxxx
+email: example@example.com
+---
+
+## 实习经历
+title: 工作经历
+
+### 示例公司
+role: 产品实习生
+date: 2025.01-2025.03
+
+- 负责需求梳理
+`;
+  const result = evaluate(markdown);
+  assert.ok(result.state);
+  assert.equal(result.state.sections[0].title, "工作经历");
+});

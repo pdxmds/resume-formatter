@@ -183,6 +183,13 @@ function parseSections(lines, startLine, errors) {
       }
     }
 
+    // Optional custom display title, placed directly below a section heading.
+    if (trimmed.startsWith("title:") && currentSection && (!currentEntry
+      || (currentSection.type === "skills" && currentEntry.bullets.length === 0))) {
+      currentSection.title = trimmed.slice("title:".length).trim();
+      continue;
+    }
+
     // ### entry
     if (trimmed.startsWith("### ") || trimmed === "###") {
       if (!currentSection) {

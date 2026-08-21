@@ -147,6 +147,14 @@
 .entry-header { position: relative; }
 .bullet-row:hover .btn-del-bullet, .entry-header:hover .btn-del-entry { opacity: 1; }
 .btn-del-bullet:hover, .btn-del-entry:hover { background: #fee2e2; }
+.section-title[contenteditable] { cursor: text; }
+.entry-date[data-empty="true"] {
+  display: inline-block;
+  min-width: 8em;
+  color: #9ca3af;
+  text-align: right;
+}
+.entry-date[data-empty="true"]::before { content: attr(data-placeholder); }
 .bullet-add-row { list-style: none; padding: 0; height: 0; overflow: hidden; }
 .entry-bullets:hover .bullet-add-row, .skills-list:hover .bullet-add-row { height: auto; }
 .entry-add-row { height: 0; overflow: hidden; margin-top: 0; }

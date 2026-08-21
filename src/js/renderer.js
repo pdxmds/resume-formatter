@@ -167,6 +167,10 @@ function renderSection(section) {
   const titleEl = document.createElement("h2");
   titleEl.className = "section-title";
   titleEl.textContent = section.title;
+  titleEl.contentEditable = "plaintext-only";
+  titleEl.dataset.sectionId = section.id;
+  titleEl.dataset.empty = section.title ? "false" : "true";
+  titleEl.setAttribute("aria-label", "编辑栏目标题");
   sectionEl.appendChild(titleEl);
 
   const divider = document.createElement("div");
@@ -237,6 +241,9 @@ function renderEntry(entry) {
   dateSpan.textContent = entry.date || "";
   dateSpan.contentEditable = "plaintext-only";
   dateSpan.dataset.entryField = "date";
+  dateSpan.dataset.empty = entry.date ? "false" : "true";
+  dateSpan.dataset.placeholder = "起止日期";
+  dateSpan.setAttribute("aria-label", "编辑起止日期");
   dateLocSpan.appendChild(dateSpan);
   headerEl.appendChild(dateLocSpan);
 

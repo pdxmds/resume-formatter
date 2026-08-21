@@ -97,6 +97,10 @@ body {
   flex-shrink: 0;
 }
 
+.toolbar-history-group {
+  padding-right: 4px;
+}
+
 .toolbar-btn {
   display: inline-flex;
   align-items: center;

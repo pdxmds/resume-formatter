@@ -5,7 +5,7 @@
  */
 
 /** @type {string[]} */
-const ALLOWED_SECTION_TYPES = ["education", "experience", "projects", "skills"];
+const ALLOWED_SECTION_TYPES = ["education", "experience", "projects", "skills", "custom"];
 
 /**
  * Strip code fences (```json ... ```) from raw input.
@@ -54,7 +54,7 @@ function describeJsonError(raw, err) {
 
 /** @type {string} */
 const JSON_EXAMPLE = `{
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "resumeName": "谷雨-用户增长产品经理（虚构演示）",
   "profile": {
     "name": "谷雨",
@@ -131,7 +131,7 @@ const JSON_EXAMPLE = `{
 const SCHEMA_VERSION = 1;
 
 const MARKDOWN_EXAMPLE = `---
-schema_version: 1
+schema_version: 2
 resume_name: 谷雨-用户增长产品经理（虚构演示）
 name: 谷雨
 headline: 用户增长产品经理｜虚构演示数据
@@ -197,7 +197,7 @@ date: 2023.10–2024.01
 - **工具**：Figma、Axure、飞书文档
 - **语言**：英语 CET-6 578，具备英文资料阅读及业务沟通能力`;
 
-const PROMPT_PDF_TO_MD = `请完整读取我上传的 PDF 简历，并将其转换为 Resume Formatter 可以直接导入的 Markdown Schema v1。
+const PROMPT_PDF_TO_MD = `请完整读取我上传的 PDF 简历，并将其转换为 Resume Formatter 可以直接导入的 Markdown Schema v2。
 
 你的任务仅限于提取和结构化原简历，不负责评价、润色、优化或改写内容。
 
@@ -219,13 +219,13 @@ const PROMPT_PDF_TO_MD = `请完整读取我上传的 PDF 简历，并将其转�
 1. 只输出最终 Markdown。
 2. 不要使用 Markdown 代码块包裹。
 3. 不要输出说明、前言、注释、总结或转换报告。
-4. 必须严格符合 Resume Formatter Schema v1。
+4. 必须严格符合 Resume Formatter Schema v2。
 5. 不得创建原简历不存在的经历和数据。
 6. 原简历没有的栏目可以省略。
 7. 缺失的选填字段填写为空。
 8. 不得使用表格、引用块、图片、脚注、HTML 标签或嵌套列表。
 9. 每条经历内容使用一级 Bullet，以"- "开头。
-10. 只允许使用 education、experience、projects、skills 四个栏目。
+10. 优先使用 education、experience、projects、skills 预置栏目；原简历中的其他栏目保留原标题，不要强行归类。
 
 字段映射规则：
 
@@ -245,7 +245,7 @@ const PROMPT_PDF_TO_MD = `请完整读取我上传的 PDF 简历，并将其转�
 请严格使用以下格式：
 
 ---
-schema_version: 1
+schema_version: 2
 resume_name: 姓名-求职方向
 name: 姓名
 headline: 求职方向
@@ -296,7 +296,7 @@ location:
 
 开始前，请先完整读取我上传的 PDF，然后直接输出最终 Markdown。`;
 
-const PROMPT_DOCX_TO_MD = `请完整读取我上传的 Word / DOCX 简历，并将其转换为 Resume Formatter 可以直接导入的 Markdown Schema v1。
+const PROMPT_DOCX_TO_MD = `请完整读取我上传的 Word / DOCX 简历，并将其转换为 Resume Formatter 可以直接导入的 Markdown Schema v2。
 
 你的任务仅限于提取和结构化原简历，不负责评价、润色、优化或改写内容。
 
@@ -318,18 +318,18 @@ const PROMPT_DOCX_TO_MD = `请完整读取我上传的 Word / DOCX 简历，并�
 1. 只输出最终 Markdown。
 2. 不要使用 Markdown 代码块包裹。
 3. 不要输出说明、前言、注释、总结或转换报告。
-4. 必须严格符合 Resume Formatter Schema v1。
+4. 必须严格符合 Resume Formatter Schema v2。
 5. 不得创建原简历不存在的经历和数据。
 6. 原简历没有的栏目可以省略。
 7. 缺失的选填字段填写为空。
 8. 不得使用表格、引用块、图片、脚注、HTML 标签或嵌套列表。
 9. 每条经历内容使用一级 Bullet，以"- "开头。
-10. 只允许使用 education、experience、projects、skills 四个栏目。
+10. 优先使用 education、experience、projects、skills 预置栏目；原简历中的其他栏目保留原标题，不要强行归类。
 
-字段映射和标准格式与 Resume Formatter Schema v1 一致：
+字段映射和标准格式与 Resume Formatter Schema v2 一致：
 
 ---
-schema_version: 1
+schema_version: 2
 resume_name: 姓名-求职方向
 name: 姓名
 headline: 求职方向
@@ -410,7 +410,7 @@ const PROMPT_PDF_TO_JSON = `请完整读取我上传的 PDF 简历，并将其�
 请严格使用以下结构：
 
 {
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "resumeName": "姓名-求职方向",
   "profile": {
     "name": "",
@@ -503,10 +503,10 @@ const PROMPT_DOCX_TO_JSON = `请完整读取我上传的 Word / DOCX 简历，�
 7. 原简历没有的栏目可以省略。
 8. 不要输出 ID、时间戳、照片位置或排版状态。
 
-JSON 结构严格使用 Resume Formatter Schema v1：
+JSON 结构严格使用 Resume Formatter Schema v2：
 
 {
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "resumeName": "姓名-求职方向",
   "profile": {
     "name": "",
@@ -599,8 +599,8 @@ ${errorList}`;
 1. 返回修正后的完整 JSON，不要包含 \`\`\`json 代码块标记或额外文本。
 2. 修复所有错误和警告。
 3. 保持原有数据不变，只修正格式和缺失字段。
-4. schemaVersion 必须为 1。
-5. sections 的 type 只能是 education、experience、projects、skills。
+4. schemaVersion 必须为 2。
+5. sections 可以使用预置类型，也可以使用带 title 和 blocks 的 custom 类型。
 6. bullets 必须是字符串数组，可以包含 **加粗** 标记。
 7. profile 必须包含 name、headline、phone、email。`;
 
@@ -650,15 +650,15 @@ function importJsonResume(rawJson, fileName) {
       code: "MISSING_SCHEMA_VERSION",
       field: "schemaVersion",
       message: "缺少必填字段：schemaVersion。",
-      suggestion: "请添加 \"schemaVersion\": 1。",
+      suggestion: "请添加 \"schemaVersion\": 2。",
     });
-  } else if (data.schemaVersion !== 1) {
+  } else if (![1, 2].includes(data.schemaVersion)) {
     errors.push({
       level: "error",
       code: "UNSUPPORTED_SCHEMA_VERSION",
       field: "schemaVersion",
-      message: `不支持的 schemaVersion：${data.schemaVersion}，当前仅支持版本 1。`,
-      suggestion: "请将 schemaVersion 修改为 1。",
+      message: `不支持的 schemaVersion：${data.schemaVersion}，当前支持版本 1 和 2。`,
+      suggestion: "请将 schemaVersion 修改为 2。",
     });
   }
 
@@ -739,12 +739,12 @@ function importJsonResume(rawJson, fileName) {
           code: "UNKNOWN_SECTION",
           section: section.type,
           message: `未知栏目类型：${section.type}。支持：${ALLOWED_SECTION_TYPES.join("、")}。`,
-          suggestion: "请使用 education、experience、projects、skills 之一。",
+          suggestion: "请使用已支持的栏目类型。",
         });
         continue;
       }
 
-      if (sectionTypesSeen.has(section.type)) {
+      if (section.type !== "custom" && sectionTypesSeen.has(section.type)) {
         errors.push({
           level: "warning",
           code: "DUPLICATE_SECTION",
@@ -753,7 +753,31 @@ function importJsonResume(rawJson, fileName) {
           suggestion: "第一个之外的重复栏目将被保留但可能导致排版问题。",
         });
       }
-      sectionTypesSeen.add(section.type);
+      if (section.type !== "custom") sectionTypesSeen.add(section.type);
+
+      if (section.type === "custom") {
+        if (!section.title || typeof section.title !== "string") {
+          errors.push({
+            level: "error",
+            code: "MISSING_SECTION_TITLE",
+            section: "custom",
+            message: `${sectionLabel} 缺少 title 字段。`,
+            suggestion: "请添加 \"title\": \"板块名称\"。",
+          });
+        }
+        if (!Array.isArray(section.blocks)) {
+          errors.push({
+            level: "error",
+            code: "INVALID_BLOCKS",
+            section: "custom",
+            message: `${sectionLabel} 的 blocks 必须为数组。`,
+            suggestion: "请添加 \"blocks\": [ ... ]。",
+          });
+        } else {
+          validateJsonCustomBlocks(section.blocks, sectionLabel, errors);
+        }
+        continue;
+      }
 
       // Validate entries
       if (!Array.isArray(section.entries)) {
@@ -888,11 +912,13 @@ function importJsonResume(rawJson, fileName) {
   const projCount = data.sections.find((s) => s.type === "projects")?.entries?.length || 0;
   const skillSection = data.sections.find((s) => s.type === "skills");
   const skillCount = skillSection?.entries?.[0]?.bullets?.length || 0;
+  const customCount = data.sections.filter((section) => section.type === "custom").length;
 
   if (eduCount > 0) summaryItems.push(`${eduCount} 条教育经历`);
   if (expCount > 0) summaryItems.push(`${expCount} 条工作经历`);
   if (projCount > 0) summaryItems.push(`${projCount} 个项目`);
   if (skillCount > 0) summaryItems.push(`${skillCount} 条技能`);
+  if (customCount > 0) summaryItems.push(`${customCount} 个自定义栏目`);
 
   const errorCount = errors.filter((e) => e.level === "error").length;
   const warningCount = errors.filter((e) => e.level === "warning").length;
@@ -922,6 +948,7 @@ function buildStateFromJson(data, fileName) {
   state.source.fileName = fileName;
   state.source.importedAt = now;
   state.source.sourceType = "json";
+  state.schemaVersion = data.schemaVersion || 1;
 
   const profile = data.profile || {};
   state.profile.name = profile.name || "";
@@ -937,6 +964,7 @@ function buildStateFromJson(data, fileName) {
     id: generateId(),
     type: section.type,
     title: section.title || getSectionTitle(section.type),
+    blocks: (section.blocks || []).map((block) => buildJsonCustomBlock(block)),
     entries: (section.entries || []).map((entry) => ({
       id: generateId(),
       name: entry.name || "",
@@ -954,4 +982,60 @@ function buildStateFromJson(data, fileName) {
   state.importSnapshot = createImportSnapshot(state);
 
   return state;
+}
+
+function validateJsonCustomBlocks(blocks, sectionLabel, errors) {
+  blocks.forEach((block, index) => {
+    const label = `${sectionLabel}.blocks[${index}]`;
+    if (!block || typeof block !== "object" || !["text", "list", "entry"].includes(block.type)) {
+      errors.push({
+        level: "error",
+        code: "INVALID_BLOCK",
+        section: "custom",
+        message: `${label} 必须是 text、list 或 entry 内容块。`,
+      });
+      return;
+    }
+    if (block.type === "text" && typeof block.content !== "string") {
+      errors.push({ level: "error", code: "INVALID_BLOCK_CONTENT", section: "custom", message: `${label}.content 必须是字符串。` });
+    }
+    if (block.type === "list" && (!Array.isArray(block.items) || block.items.some((item) => typeof item !== "string"))) {
+      errors.push({ level: "error", code: "INVALID_BLOCK_ITEMS", section: "custom", message: `${label}.items 必须是字符串数组。` });
+    }
+    if (block.type === "entry" && typeof block.name !== "string") {
+      errors.push({ level: "error", code: "INVALID_BLOCK_ENTRY", section: "custom", message: `${label}.name 必须是字符串。` });
+    }
+    if (block.type === "entry" && block.bullets !== undefined
+      && (!Array.isArray(block.bullets) || block.bullets.some((item) => typeof item !== "string"))) {
+      errors.push({ level: "error", code: "INVALID_BLOCK_BULLETS", section: "custom", message: `${label}.bullets 必须是字符串数组。` });
+    }
+  });
+}
+
+function buildJsonCustomBlock(block) {
+  if (block.type === "text") {
+    return { id: generateId(), type: "text", content: parseBoldTokens(block.content || "", 0, []) };
+  }
+  if (block.type === "list") {
+    return {
+      id: generateId(),
+      type: "list",
+      bullets: (block.items || []).map((item) => ({
+        id: generateId(),
+        content: parseBoldTokens(item, 0, []),
+      })),
+    };
+  }
+  return {
+    id: generateId(),
+    type: "entry",
+    name: block.name || "",
+    role: block.role || "",
+    date: block.date || "",
+    location: block.location || "",
+    bullets: (block.bullets || []).map((item) => ({
+      id: generateId(),
+      content: parseBoldTokens(item, 0, []),
+    })),
+  };
 }

@@ -28,6 +28,20 @@ function clearDirty() {
   if (btn) btn.classList.remove("toolbar-btn-dirty");
 }
 
+function getSectionEntries(section) {
+  return [
+    ...(section.entries || []),
+    ...(section.blocks || []).filter((block) => block.type === "entry"),
+  ];
+}
+
+function getSectionBulletContainers(section) {
+  return [
+    ...getSectionEntries(section),
+    ...(section.blocks || []).filter((block) => block.type === "list"),
+  ];
+}
+
 /**
  * Initialize editor: event delegation on #resume-content.
  */
@@ -64,14 +78,14 @@ function initEditor() {
     if (e.target === _focusedHistoryTarget) {
       _focusedHistoryTarget = null;
       _lastInputHistory = {
-        key: e.target.dataset.bulletId || e.target.dataset.profileField || e.target.dataset.entryField || e.target.dataset.sectionId || "editor",
+        key: e.target.dataset.bulletId || e.target.dataset.textBlockId || e.target.dataset.profileField || e.target.dataset.entryField || e.target.dataset.sectionId || "editor",
         type: e.inputType,
         time: Date.now(),
       };
       return;
     }
     const now = Date.now();
-    const key = e.target.dataset.bulletId || e.target.dataset.profileField || e.target.dataset.entryField || e.target.dataset.sectionId || "editor";
+    const key = e.target.dataset.bulletId || e.target.dataset.textBlockId || e.target.dataset.profileField || e.target.dataset.entryField || e.target.dataset.sectionId || "editor";
     const canMerge = _lastInputHistory && _lastInputHistory.key === key
       && _lastInputHistory.type === e.inputType && now - _lastInputHistory.time < 800;
     if (!canMerge) pushUndoState();
@@ -87,6 +101,7 @@ function initEditor() {
       addBulletAfter(el);
       return;
     }
+    if (el.classList.contains("custom-text")) return;
     e.preventDefault();
     el.blur();
   });
@@ -100,6 +115,7 @@ function initEditor() {
 
   // Sync on blur
   content.addEventListener("blur", (e) => {
+    if (!e.target.matches("[contenteditable]")) return;
     syncElementToState(e.target);
     if (e.target === _focusedHistoryTarget) _focusedHistoryTarget = null;
   }, true);
@@ -119,6 +135,9 @@ function initEditor() {
     else if (btn.classList.contains("btn-add-bullet"))  { e.stopPropagation(); addBullet(btn.dataset.entryId); }
     else if (btn.classList.contains("btn-del-entry"))   { e.stopPropagation(); deleteEntry(btn.dataset.entryId); }
     else if (btn.classList.contains("btn-add-entry"))   { e.stopPropagation(); addEntry(btn.dataset.sectionId); }
+    else if (btn.classList.contains("btn-add-block"))   { e.stopPropagation(); addCustomBlock(btn.dataset.sectionId, btn.dataset.blockType); }
+    else if (btn.classList.contains("btn-del-block"))   { e.stopPropagation(); deleteCustomBlock(btn.dataset.blockId); }
+    else if (btn.classList.contains("btn-del-section")) { e.stopPropagation(); deleteSection(btn.dataset.sectionId); }
   });
 
   initSpacingHandles();
@@ -601,7 +620,7 @@ function clampFontDelta(value) {
 
 function findBulletById(bulletId) {
   for (const section of getState().sections) {
-    for (const entry of section.entries) {
+    for (const entry of getSectionBulletContainers(section)) {
       const bullet = entry.bullets.find((item) => item.id === bulletId);
       if (bullet) return bullet;
     }
@@ -615,6 +634,7 @@ function getBlockFormatKey(target) {
     const entry = target.closest("[data-entry-id]");
     return entry ? `entry:${entry.dataset.entryId}:${target.dataset.entryField}` : null;
   }
+  if (target.dataset.textBlockId) return `text:${target.dataset.textBlockId}:content`;
   return null;
 }
 
@@ -622,7 +642,9 @@ function getBlockFormatSelector(key) {
   const [kind, id, field] = key.split(":");
   return kind === "profile"
     ? `[data-profile-field="${CSS.escape(id)}"]`
-    : `[data-entry-id="${CSS.escape(id)}"] [data-entry-field="${CSS.escape(field)}"]`;
+    : kind === "text"
+      ? `[data-text-block-id="${CSS.escape(id)}"]`
+      : `[data-entry-id="${CSS.escape(id)}"] [data-entry-field="${CSS.escape(field)}"]`;
 }
 
 function isElementBold(element) {
@@ -849,7 +871,7 @@ function addBulletAfter(bulletSpan) {
   const state = getState();
 
   for (const section of state.sections) {
-    for (const entry of section.entries) {
+    for (const entry of getSectionBulletContainers(section)) {
       const idx = entry.bullets.findIndex(b => b.id === bulletId);
       if (idx === -1) continue;
 
@@ -883,7 +905,7 @@ function addBulletAfter(bulletSpan) {
 function addBullet(entryId) {
   const state = getState();
   for (const section of state.sections) {
-    for (const entry of section.entries) {
+    for (const entry of getSectionBulletContainers(section)) {
       if (entry.id !== entryId) continue;
 
       const newBullet = { id: generateId(), content: [{ type: "text", value: "" }] };
@@ -916,7 +938,7 @@ function addBullet(entryId) {
 function deleteBullet(bulletId) {
   const state = getState();
   for (const section of state.sections) {
-    for (const entry of section.entries) {
+    for (const entry of getSectionBulletContainers(section)) {
       const idx = entry.bullets.findIndex(b => b.id === bulletId);
       if (idx === -1) continue;
       pushUndoState();
@@ -933,6 +955,105 @@ function deleteBullet(bulletId) {
 /** ========================
  *  Entry operations
  *  ======================== */
+
+function addSection(title) {
+  const state = getState();
+  const section = {
+    id: generateId(),
+    type: "custom",
+    title: title || "未命名板块",
+    entries: [],
+    blocks: [],
+  };
+  pushUndoState();
+  state.schemaVersion = 2;
+  state.sections.push(section);
+  addCustomBlock(section.id, "text", false);
+  renderResume(state);
+  markDirty();
+  requestAnimationFrame(() => {
+    document.querySelector(`[data-section-id="${CSS.escape(section.id)}"]`)?.scrollIntoView({ block: "center" });
+    focusWithoutUndoSnapshot(document.querySelector(`[data-section-id="${CSS.escape(section.id)}"] .custom-text`));
+    updateA4Status();
+  });
+}
+
+function addCustomBlock(sectionId, blockType, recordHistory = true) {
+  const state = getState();
+  const section = state.sections.find((item) => item.id === sectionId && item.type === "custom");
+  if (!section) return;
+  if (recordHistory) pushUndoState();
+  if (!Array.isArray(section.blocks)) section.blocks = [];
+
+  let block;
+  if (blockType === "list") {
+    block = {
+      id: generateId(),
+      type: "list",
+      bullets: [{ id: generateId(), content: [{ type: "text", value: "" }] }],
+    };
+  } else if (blockType === "entry") {
+    block = {
+      id: generateId(),
+      type: "entry",
+      name: "",
+      role: "",
+      date: "",
+      location: "",
+      bullets: [{ id: generateId(), content: [{ type: "text", value: "" }] }],
+    };
+  } else {
+    block = { id: generateId(), type: "text", content: [{ type: "text", value: "" }] };
+  }
+  section.blocks.push(block);
+  renderResume(state);
+  markDirty();
+  requestAnimationFrame(() => {
+    const wrapper = document.querySelector(`[data-block-id="${CSS.escape(block.id)}"]`);
+    const target = wrapper?.querySelector("[contenteditable]");
+    focusWithoutUndoSnapshot(target);
+    updateA4Status();
+  });
+}
+
+function deleteCustomBlock(blockId) {
+  const state = getState();
+  for (const section of state.sections) {
+    const index = (section.blocks || []).findIndex((block) => block.id === blockId);
+    if (index === -1) continue;
+    pushUndoState();
+    section.blocks.splice(index, 1);
+    renderResume(state);
+    markDirty();
+    requestAnimationFrame(() => updateA4Status());
+    return;
+  }
+}
+
+function deleteSection(sectionId) {
+  const state = getState();
+  const index = state.sections.findIndex((section) => section.id === sectionId);
+  if (index === -1) return;
+  const title = state.sections[index].title || "该板块";
+  showDialog({
+    title: "删除板块",
+    message: `确定要删除“${title}”及其中的所有内容吗？`,
+    buttons: [
+      { text: "取消" },
+      {
+        text: "删除",
+        danger: true,
+        action: () => {
+          pushUndoState();
+          state.sections.splice(index, 1);
+          renderResume(state);
+          markDirty();
+          requestAnimationFrame(() => updateA4Status());
+        },
+      },
+    ],
+  });
+}
 
 /**
  * Add a new empty entry to a section.
@@ -974,9 +1095,12 @@ function addEntry(sectionId) {
 function deleteEntry(entryId) {
   const state = getState();
   for (const section of state.sections) {
-    const idx = section.entries.findIndex(e => e.id === entryId);
+    const collection = (section.entries || []).some((entry) => entry.id === entryId)
+      ? section.entries
+      : section.blocks || [];
+    const idx = collection.findIndex(e => e.id === entryId && (!e.type || e.type === "entry"));
     if (idx === -1) continue;
-    const entryName = section.entries[idx].name || "该条目";
+    const entryName = collection[idx].name || "该条目";
 
     showDialog({
       title: "删除条目",
@@ -988,9 +1112,9 @@ function deleteEntry(entryId) {
           primary: false,
           action: () => {
             pushUndoState();
-            section.entries.splice(idx, 1);
+            collection.splice(idx, 1);
             const el = document.querySelector(`[data-entry-id="${entryId}"].resume-entry`);
-            if (el) el.remove();
+            if (el) (el.closest(".custom-block") || el).remove();
             markDirty();
             requestAnimationFrame(() => updateAddGutter(state));
           },
@@ -1042,10 +1166,10 @@ function syncElementToState(el) {
     if (!entryEl) return;
     const entryId = entryEl.dataset.entryId;
     for (const section of state.sections) {
-      for (const entry of section.entries) {
+      for (const entry of getSectionEntries(section)) {
         if (entry.id === entryId) {
           entry[field === "date" ? "date" : field] = raw;
-          if (field === "date") el.dataset.empty = raw ? "false" : "true";
+          el.dataset.empty = raw ? "false" : "true";
           return;
         }
       }
@@ -1054,20 +1178,31 @@ function syncElementToState(el) {
   }
 
   // Section title
-  if (el.dataset.sectionId) {
+  if (el.classList.contains("section-title") && el.dataset.sectionId) {
     const section = state.sections.find((item) => item.id === el.dataset.sectionId);
     if (section) {
-      section.title = raw || getSectionTitle(section.type);
+      section.title = raw || (section.type === "custom" ? "未命名板块" : getSectionTitle(section.type));
       el.dataset.empty = raw ? "false" : "true";
     }
     return;
+  }
+
+  // Free-form text block
+  if (el.dataset.textBlockId) {
+    for (const section of state.sections) {
+      const block = (section.blocks || []).find((item) => item.id === el.dataset.textBlockId);
+      if (!block) continue;
+      block.content = tokensFromEditableElement(el);
+      el.dataset.empty = raw ? "false" : "true";
+      return;
+    }
   }
 
   // Bullet content
   if (el.dataset.bulletId) {
     const bulletId = el.dataset.bulletId;
     for (const section of state.sections) {
-      for (const entry of section.entries) {
+      for (const entry of getSectionBulletContainers(section)) {
         for (const bullet of entry.bullets) {
           if (bullet.id === bulletId) {
             bullet.content = tokensFromEditableElement(el);

@@ -48,6 +48,19 @@ function wireToolbar() {
   const btnExportPdf = document.getElementById("btn-export-pdf");
   const fileInput = document.getElementById("file-input-md");
 
+  const btnAddSection = document.getElementById("btn-add-section");
+  if (btnAddSection) {
+    btnAddSection.addEventListener("click", () => {
+      showInputDialog({
+        title: "新增板块",
+        message: "板块名称可以随时在简历中修改。",
+        defaultValue: "",
+        confirmText: "创建",
+        onSubmit: addSection,
+      });
+    });
+  }
+
   // Import MD
   if (btnImport && fileInput) {
     btnImport.addEventListener("click", () => {

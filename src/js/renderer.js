@@ -173,9 +173,28 @@ function renderSection(section) {
   titleEl.setAttribute("aria-label", "编辑栏目标题");
   sectionEl.appendChild(titleEl);
 
+  if (section.type === "custom") {
+    const deleteSectionButton = document.createElement("button");
+    deleteSectionButton.className = "btn-del-section no-print";
+    deleteSectionButton.type = "button";
+    deleteSectionButton.textContent = "×";
+    deleteSectionButton.title = "删除该板块";
+    deleteSectionButton.setAttribute("aria-label", `删除${section.title || "该板块"}`);
+    deleteSectionButton.dataset.sectionId = section.id;
+    sectionEl.appendChild(deleteSectionButton);
+  }
+
   const divider = document.createElement("div");
   divider.className = "section-divider";
   sectionEl.appendChild(divider);
+
+  if (section.type === "custom") {
+    for (const block of (section.blocks || [])) {
+      sectionEl.appendChild(renderCustomBlock(block));
+    }
+    sectionEl.appendChild(renderCustomBlockActions(section.id));
+    return sectionEl;
+  }
 
   // Skills: bullets directly, no entry header, no inline add
   if (section.type === "skills") {
@@ -200,6 +219,68 @@ function renderSection(section) {
   return sectionEl;
 }
 
+function renderCustomBlock(block) {
+  const wrapper = document.createElement("div");
+  wrapper.className = `custom-block custom-block-${block.type}`;
+  wrapper.dataset.blockId = block.id;
+
+  if (block.type === "text") {
+    const text = document.createElement("p");
+    text.className = "custom-text editable-placeholder";
+    text.contentEditable = "plaintext-only";
+    text.dataset.textBlockId = block.id;
+    text.dataset.empty = serializeInlineText(block.content) ? "false" : "true";
+    text.dataset.placeholder = "输入内容";
+    text.setAttribute("aria-label", "编辑正文");
+    text.appendChild(renderInlineContent(block.content || []));
+    wrapper.appendChild(text);
+  } else if (block.type === "list") {
+    const list = document.createElement("ul");
+    list.className = "custom-list entry-bullets";
+    list.dataset.entryId = block.id;
+    for (const bullet of (block.bullets || [])) list.appendChild(renderBulletRow(bullet));
+    wrapper.appendChild(list);
+  } else {
+    wrapper.appendChild(renderEntry(block));
+  }
+
+  if (block.type !== "entry") {
+    const deleteButton = document.createElement("button");
+    deleteButton.className = "btn-del-block no-print";
+    deleteButton.type = "button";
+    deleteButton.textContent = "×";
+    deleteButton.title = "删除该内容";
+    deleteButton.setAttribute("aria-label", "删除该内容");
+    deleteButton.dataset.blockId = block.id;
+    wrapper.appendChild(deleteButton);
+  }
+  return wrapper;
+}
+
+function serializeInlineText(tokens) {
+  return (tokens || []).map((token) => token.value || "").join("");
+}
+
+function renderCustomBlockActions(sectionId) {
+  const actions = document.createElement("div");
+  actions.className = "custom-block-actions no-print";
+  actions.setAttribute("aria-label", "新增板块内容");
+  [
+    ["text", "+ 正文"],
+    ["list", "+ 列表"],
+    ["entry", "+ 条目"],
+  ].forEach(([type, label]) => {
+    const button = document.createElement("button");
+    button.className = "btn-add-block";
+    button.type = "button";
+    button.dataset.sectionId = sectionId;
+    button.dataset.blockType = type;
+    button.textContent = label;
+    actions.appendChild(button);
+  });
+  return actions;
+}
+
 /**
  * Render a single entry with delete button.
  * @param {object} entry
@@ -222,6 +303,9 @@ function renderEntry(entry) {
   nameSpan.textContent = entry.name;
   nameSpan.contentEditable = "plaintext-only";
   nameSpan.dataset.entryField = "name";
+  nameSpan.dataset.empty = entry.name ? "false" : "true";
+  nameSpan.dataset.placeholder = "名称";
+  nameSpan.setAttribute("aria-label", "编辑条目名称");
   leftEl.appendChild(nameSpan);
 
   const roleSpan = document.createElement("span");
@@ -229,6 +313,9 @@ function renderEntry(entry) {
   roleSpan.textContent = entry.role || "";
   roleSpan.contentEditable = "plaintext-only";
   roleSpan.dataset.entryField = "role";
+  roleSpan.dataset.empty = entry.role ? "false" : "true";
+  roleSpan.dataset.placeholder = "角色或说明";
+  roleSpan.setAttribute("aria-label", "编辑角色或说明");
   leftEl.appendChild(roleSpan);
 
   headerEl.appendChild(leftEl);
@@ -447,6 +534,8 @@ function updateAddGutter(state) {
   state.sections.forEach((section) => {
     const sectionEl = document.querySelector(`section[data-section-id="${section.id}"]`);
     if (!sectionEl) return;
+
+    if (section.type === "custom") return;
 
     if (section.type === "skills") {
       // Skills: bullet add at bottom of list

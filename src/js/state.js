@@ -10,10 +10,10 @@ const STATE_STORAGE_PREFIX = "resume-formatter:draft:";
 const LAST_DOCUMENT_KEY = "resume-formatter:last-document";
 
 /** @type {number} */
-const APP_VERSION = "1.0.0";
+const APP_VERSION = "1.1.0";
 
 /** @type {number} */
-const SCHEMA_VERSION_1 = 1;
+const SCHEMA_VERSION_1 = 2;
 
 /** @type {string} */
 const SECTION_TITLES = {

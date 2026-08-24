@@ -4,13 +4,13 @@
  */
 
 /**
- * Serialize Resume State to Schema v1 Markdown.
+ * Serialize Resume State to Schema v2 Markdown.
  * @param {object} state
  * @returns {string}
  */
 function serializeStateToMarkdown(state) {
   const cleanScalar = (value) => String(value || "").replace(/[\r\n]+/g, " ").trim();
-  const lines = ["---", "schema_version: 1"];
+  const lines = ["---", "schema_version: 2"];
   const frontmatter = [
     ["resume_name", state.resumeName],
     ["name", state.profile.name],
@@ -31,27 +31,50 @@ function serializeStateToMarkdown(state) {
   lines.push("---", "");
 
   (state.sections || []).forEach((section) => {
+    if (section.type === "custom") {
+      lines.push("## custom", "", `title: ${cleanScalar(section.title) || "未命名板块"}`, "");
+      (section.blocks || []).forEach((block) => {
+        if (block.type === "text") {
+          const value = serializeInlineMarkdown(block.content);
+          if (value) lines.push(value, "");
+          return;
+        }
+        if (block.type === "list") {
+          (block.bullets || []).forEach((bullet) => {
+            lines.push(`- ${serializeInlineMarkdown(bullet.content)}`);
+          });
+          lines.push("");
+          return;
+        }
+        serializeEntryToMarkdown(lines, block, cleanScalar);
+      });
+      return;
+    }
     const defaultTitle = getSectionTitle(section.type);
     const title = cleanScalar(section.title);
     lines.push(`## ${defaultTitle}`, "");
     if (title && title !== defaultTitle) lines.push(`title: ${title}`, "");
     (section.entries || []).forEach((entry) => {
-      if (section.type !== "skills") {
-        lines.push(`### ${cleanScalar(entry.name)}`);
-        if (entry.role) lines.push(`role: ${cleanScalar(entry.role)}`);
-        if (entry.date) lines.push(`date: ${cleanScalar(entry.date)}`);
-        if (entry.location) lines.push(`location: ${cleanScalar(entry.location)}`);
+      if (section.type === "skills") {
+        (entry.bullets || []).forEach((bullet) => lines.push(`- ${serializeInlineMarkdown(bullet.content)}`));
         lines.push("");
-      }
-
-      (entry.bullets || []).forEach((bullet) => {
-        lines.push(`- ${serializeInlineMarkdown(bullet.content)}`);
-      });
-      lines.push("");
+      } else serializeEntryToMarkdown(lines, entry, cleanScalar);
     });
   });
 
   return lines.join("\n").replace(/\n{3,}/g, "\n\n").trimEnd() + "\n";
+}
+
+function serializeEntryToMarkdown(lines, entry, cleanScalar) {
+  lines.push(`### ${cleanScalar(entry.name)}`);
+  if (entry.role) lines.push(`role: ${cleanScalar(entry.role)}`);
+  if (entry.date) lines.push(`date: ${cleanScalar(entry.date)}`);
+  if (entry.location) lines.push(`location: ${cleanScalar(entry.location)}`);
+  lines.push("");
+  (entry.bullets || []).forEach((bullet) => {
+    lines.push(`- ${serializeInlineMarkdown(bullet.content)}`);
+  });
+  lines.push("");
 }
 
 /**
@@ -72,7 +95,7 @@ function serializeInlineMarkdown(tokens) {
 /** Serialize Resume State to the supported JSON import schema. */
 function serializeStateToJson(state) {
   const data = {
-    schemaVersion: 1,
+    schemaVersion: 2,
     resumeName: state.resumeName || "",
     profile: {
       name: state.profile.name || "",
@@ -87,6 +110,9 @@ function serializeStateToJson(state) {
     sections: (state.sections || []).map((section) => ({
       type: section.type,
       title: section.title || getSectionTitle(section.type),
+      ...((section.type === "custom") ? {
+        blocks: (section.blocks || []).map((block) => serializeCustomBlockToJson(block)),
+      } : {}),
       entries: (section.entries || []).map((entry) => ({
         name: entry.name || "",
         role: entry.role || "",
@@ -97,6 +123,26 @@ function serializeStateToJson(state) {
     })),
   };
   return JSON.stringify(data, null, 2) + "\n";
+}
+
+function serializeCustomBlockToJson(block) {
+  if (block.type === "text") {
+    return { type: "text", content: serializeInlineMarkdown(block.content) };
+  }
+  if (block.type === "list") {
+    return {
+      type: "list",
+      items: (block.bullets || []).map((bullet) => serializeInlineMarkdown(bullet.content)),
+    };
+  }
+  return {
+    type: "entry",
+    name: block.name || "",
+    role: block.role || "",
+    date: block.date || "",
+    location: block.location || "",
+    bullets: (block.bullets || []).map((bullet) => serializeInlineMarkdown(bullet.content)),
+  };
 }
 
 /**

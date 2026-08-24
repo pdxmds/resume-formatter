@@ -148,6 +148,72 @@
 .bullet-row:hover .btn-del-bullet, .entry-header:hover .btn-del-entry { opacity: 1; }
 .btn-del-bullet:hover, .btn-del-entry:hover { background: #fee2e2; }
 .section-title[contenteditable] { cursor: text; }
+.editable-placeholder[data-empty="true"]:empty::before {
+  content: attr(data-placeholder);
+  color: #9ca3af;
+}
+.entry-name[data-empty="true"],
+.entry-role[data-empty="true"] {
+  display: inline-block !important;
+  min-width: 6em;
+  color: #9ca3af !important;
+}
+.entry-name[data-empty="true"]:empty::before,
+.entry-role[data-empty="true"]:empty::before {
+  content: attr(data-placeholder);
+}
+.btn-del-section,
+.btn-del-block {
+  position: absolute;
+  right: -20px;
+  border: none;
+  border-radius: 3px;
+  padding: 0 3px;
+  background: none;
+  color: #dc2626;
+  font-size: 13px;
+  line-height: 1;
+  cursor: pointer;
+  opacity: 0;
+}
+.btn-del-section { top: 2px; z-index: 21; }
+.custom-block { position: relative; }
+.btn-del-block { top: 50%; transform: translateY(-50%); }
+.resume-section:hover > .btn-del-section,
+.custom-block:hover > .btn-del-block { opacity: 1; }
+.btn-del-section:hover,
+.btn-del-block:hover { background: #fee2e2; }
+.custom-text {
+  min-height: 1.5em;
+  margin: 0 0 var(--bullet-gap);
+  color: var(--color-text);
+  font-size: var(--font-size-body);
+  line-height: var(--layout-line-height, 1.55);
+  white-space: pre-wrap;
+  cursor: text;
+}
+.custom-list { margin-bottom: var(--entry-gap) !important; }
+.custom-block-actions {
+  display: flex;
+  align-items: center;
+  gap: 3mm;
+  height: 0;
+  overflow: hidden;
+}
+.resume-section:hover .custom-block-actions {
+  height: 22px;
+  margin-top: 1mm;
+}
+.btn-add-block {
+  border: none;
+  border-radius: 3px;
+  padding: 2px 5px;
+  background: transparent;
+  color: #6b7280;
+  font: 11px/1.4 system-ui, sans-serif;
+  cursor: pointer;
+}
+.btn-add-block:hover { background: #f3f4f6; color: #111827; }
 .entry-date[data-empty="true"] {
   display: inline-block;
   min-width: 8em;
@@ -170,7 +236,7 @@
    ======================== */
 #resume-page {
   width: 210mm; min-height: 297mm; background: #fff;
-  box-shadow: 0 2px 16px rgba(0,0,0,0.12); position: relative; overflow: hidden;
+  box-shadow: 0 2px 16px rgba(0,0,0,0.12); position: relative; overflow: visible;
   font-family: "PingFang SC", -apple-system, BlinkMacSystemFont, "Hiragino Sans GB", "Microsoft YaHei", "Segoe UI", Arial, sans-serif;
 }
 #resume-content { box-sizing: border-box; color: #1a1a1a; }

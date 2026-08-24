@@ -10,9 +10,12 @@ const SUPPORTED_SECTIONS = ["education", "experience", "projects", "skills"];
 /** @type {Record<string, string>} */
 const SECTION_ALIASES = {
   "教育经历": "education",
+  "教育背景": "education",
   "实习经历": "experience",
+  "工作经历": "experience",
   "项目经历": "projects",
   "技能": "skills",
+  "技能特长": "skills",
 };
 
 /**
@@ -143,6 +146,7 @@ function parseSections(lines, startLine, errors) {
   let currentSection = null;
   let currentEntry = null;
   let currentBullets = null;
+  let currentListBlock = null;
 
   for (let i = startLine; i < lines.length; i++) {
     const line = lines[i];
@@ -154,23 +158,18 @@ function parseSections(lines, startLine, errors) {
     // ## section
     if (trimmed.startsWith("## ") || trimmed === "##") {
       const rawName = trimmed.slice(2).trim();
-      const name = SECTION_ALIASES[rawName] || rawName;
+      const alias = SECTION_ALIASES[rawName] || rawName;
+      const name = SUPPORTED_SECTIONS.includes(alias) ? alias : "custom";
       if (name && !name.startsWith("#")) {
-        if (!SUPPORTED_SECTIONS.includes(name)) {
-          errors.push({
-            level: "error",
-            code: "UNKNOWN_SECTION",
-            section: name,
-            message: `未知栏目：${name}。支持：${SUPPORTED_SECTIONS.join("、")}。`,
-            line: i + 1,
-            suggestion: "请使用 Schema v1 定义的标准栏目。",
-          });
-          continue;
-        }
-
-        currentSection = { type: name, line: i + 1, entries: [] };
+        currentSection = {
+          type: name,
+          ...(name === "custom" ? { title: rawName, blocks: [] } : {}),
+          line: i + 1,
+          entries: [],
+        };
         currentEntry = null;
         currentBullets = null;
+        currentListBlock = null;
         sections.push(currentSection);
 
         // skills has no ### entries — use one synthetic entry
@@ -213,8 +212,15 @@ function parseSections(lines, startLine, errors) {
       }
       const name = trimmed.slice(3).trim();
       currentEntry = { name, role: "", date: "", location: "", bullets: [], line: i + 1 };
-      currentSection.entries.push(currentEntry);
+      if (currentSection.type === "custom") {
+        currentEntry.type = "entry";
+        currentEntry.id = "";
+        currentSection.blocks.push(currentEntry);
+      } else {
+        currentSection.entries.push(currentEntry);
+      }
       currentBullets = currentEntry.bullets;
+      currentListBlock = null;
       continue;
     }
 
@@ -251,6 +257,13 @@ function parseSections(lines, startLine, errors) {
 
     // - bullet
     if (trimmed.startsWith("- ")) {
+      if (currentSection?.type === "custom" && !currentBullets) {
+        if (!currentListBlock) {
+          currentListBlock = { type: "list", bullets: [], line: i + 1 };
+          currentSection.blocks.push(currentListBlock);
+        }
+        currentBullets = currentListBlock.bullets;
+      }
       if (!currentBullets) {
         errors.push({
           level: "warning",
@@ -274,6 +287,19 @@ function parseSections(lines, startLine, errors) {
         raw: content,
         content: parseBoldTokens(content, i, errors),
       });
+      continue;
+    }
+
+    // Free-form paragraph in a custom section.
+    if (currentSection?.type === "custom") {
+      currentSection.blocks.push({
+        type: "text",
+        line: i + 1,
+        content: parseBoldTokens(trimmed, i, errors),
+      });
+      currentEntry = null;
+      currentBullets = null;
+      currentListBlock = null;
       continue;
     }
 

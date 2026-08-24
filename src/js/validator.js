@@ -1,6 +1,6 @@
 /**
  * Validator module.
- * Validates parsed Markdown against Schema v1 rules and builds a Resume State.
+ * Validates supported Markdown schemas and builds a Resume State.
  */
 
 /** @type {string[]} */
@@ -49,13 +49,13 @@ function validateAndBuildState(parseResult, fileName) {
       line: frontmatter._startLine + 1,
       suggestion: "请在 Frontmatter 中添加 schema_version: 1。",
     });
-  } else if (schemaVersion !== 1) {
+  } else if (![1, 2].includes(schemaVersion)) {
     errors.push({
       level: "error",
       code: "UNSUPPORTED_SCHEMA_VERSION",
-      message: `不支持的 schema_version：${frontmatter.schema_version}，当前仅支持版本 1。`,
+      message: `不支持的 schema_version：${frontmatter.schema_version}，当前支持版本 1 和 2。`,
       line: frontmatter._startLine + 1,
-      suggestion: "请将 schema_version 修改为 1。",
+      suggestion: "请将 schema_version 修改为 2。",
     });
   }
 
@@ -76,7 +76,7 @@ function validateAndBuildState(parseResult, fileName) {
   // 3. Validate sections
   let sectionTypesSeen = new Set();
   for (const section of sections) {
-    if (sectionTypesSeen.has(section.type)) {
+    if (section.type !== "custom" && sectionTypesSeen.has(section.type)) {
       errors.push({
         level: "warning",
         code: "DUPLICATE_SECTION",
@@ -86,7 +86,20 @@ function validateAndBuildState(parseResult, fileName) {
         suggestion: "第一个之外的重复栏目将被保留但可能导致排版问题。",
       });
     }
-    sectionTypesSeen.add(section.type);
+    if (section.type !== "custom") sectionTypesSeen.add(section.type);
+
+    if (section.type === "custom") {
+      if (!section.title) {
+        errors.push({
+          level: "error",
+          code: "MISSING_SECTION_TITLE",
+          message: "自定义栏目缺少标题。",
+          line: section.line,
+          suggestion: "请使用 ## 栏目名称。",
+        });
+      }
+      continue;
+    }
 
     for (const entry of (section.entries || [])) {
       // Validate entry fields
@@ -177,11 +190,13 @@ function validateAndBuildState(parseResult, fileName) {
   const expCount = sections.find((s) => s.type === "experience")?.entries?.length || 0;
   const projCount = sections.find((s) => s.type === "projects")?.entries?.length || 0;
   const skillCount = sections.find((s) => s.type === "skills")?.entries?.[0]?.bullets?.length || 0;
+  const customCount = sections.filter((s) => s.type === "custom").length;
 
   if (eduCount > 0) summaryItems.push(`${eduCount} 条教育经历`);
   if (expCount > 0) summaryItems.push(`${expCount} 条工作经历`);
   if (projCount > 0) summaryItems.push(`${projCount} 个项目`);
   if (skillCount > 0) summaryItems.push(`${skillCount} 条技能`);
+  if (customCount > 0) summaryItems.push(`${customCount} 个自定义栏目`);
 
   const errorCount = errors.filter((e) => e.level === "error").length;
   const warningCount = errors.filter((e) => e.level === "warning").length;
@@ -221,10 +236,12 @@ function buildState(frontmatter, sections, fileName) {
   state.profile.github = frontmatter.github || "";
   state.photo.source = frontmatter.photo || "";
 
+  state.schemaVersion = Number.parseInt(frontmatter.schema_version, 10) || 1;
   state.sections = sections.map((section) => ({
     id: generateId(),
     type: section.type,
     title: section.title || getSectionTitle(section.type),
+    blocks: (section.blocks || []).map((block) => buildCustomBlock(block)),
     entries: (section.entries || []).map((entry) => ({
       id: generateId(),
       name: entry.name || "",
@@ -242,4 +259,36 @@ function buildState(frontmatter, sections, fileName) {
   state.importSnapshot = createImportSnapshot(state);
 
   return state;
+}
+
+function buildCustomBlock(block) {
+  if (block.type === "text") {
+    return {
+      id: generateId(),
+      type: "text",
+      content: block.content || [{ type: "text", value: "" }],
+    };
+  }
+  if (block.type === "list") {
+    return {
+      id: generateId(),
+      type: "list",
+      bullets: (block.bullets || []).map((bullet) => ({
+        id: generateId(),
+        content: bullet.content || [{ type: "text", value: bullet.raw || "" }],
+      })),
+    };
+  }
+  return {
+    id: generateId(),
+    type: "entry",
+    name: block.name || "",
+    role: block.role || "",
+    date: block.date || "",
+    location: block.location || "",
+    bullets: (block.bullets || []).map((bullet) => ({
+      id: generateId(),
+      content: bullet.content || [{ type: "text", value: bullet.raw || "" }],
+    })),
+  };
 }

@@ -101,6 +101,12 @@ body {
   padding-right: 4px;
 }
 
+.toolbar-add-section {
+  border: 1px solid var(--border-strong);
+  background: var(--surface);
+  font-weight: 550;
+}
+
 .toolbar-btn {
   display: inline-flex;
   align-items: center;

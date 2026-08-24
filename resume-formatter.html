@@ -109,6 +109,12 @@ body {
   padding-right: 4px;
 }
 
+.toolbar-add-section {
+  border: 1px solid var(--border-strong);
+  background: var(--surface);
+  font-weight: 550;
+}
+
 .toolbar-btn {
   display: inline-flex;
   align-items: center;
@@ -1098,6 +1104,72 @@ body {
 .bullet-row:hover .btn-del-bullet, .entry-header:hover .btn-del-entry { opacity: 1; }
 .btn-del-bullet:hover, .btn-del-entry:hover { background: #fee2e2; }
 .section-title[contenteditable] { cursor: text; }
+.editable-placeholder[data-empty="true"]:empty::before {
+  content: attr(data-placeholder);
+  color: #9ca3af;
+}
+.entry-name[data-empty="true"],
+.entry-role[data-empty="true"] {
+  display: inline-block !important;
+  min-width: 6em;
+  color: #9ca3af !important;
+}
+.entry-name[data-empty="true"]:empty::before,
+.entry-role[data-empty="true"]:empty::before {
+  content: attr(data-placeholder);
+}
+.btn-del-section,
+.btn-del-block {
+  position: absolute;
+  right: -20px;
+  border: none;
+  border-radius: 3px;
+  padding: 0 3px;
+  background: none;
+  color: #dc2626;
+  font-size: 13px;
+  line-height: 1;
+  cursor: pointer;
+  opacity: 0;
+}
+.btn-del-section { top: 2px; z-index: 21; }
+.custom-block { position: relative; }
+.btn-del-block { top: 50%; transform: translateY(-50%); }
+.resume-section:hover > .btn-del-section,
+.custom-block:hover > .btn-del-block { opacity: 1; }
+.btn-del-section:hover,
+.btn-del-block:hover { background: #fee2e2; }
+.custom-text {
+  min-height: 1.5em;
+  margin: 0 0 var(--bullet-gap);
+  color: var(--color-text);
+  font-size: var(--font-size-body);
+  line-height: var(--layout-line-height, 1.55);
+  white-space: pre-wrap;
+  cursor: text;
+}
+.custom-list { margin-bottom: var(--entry-gap) !important; }
+.custom-block-actions {
+  display: flex;
+  align-items: center;
+  gap: 3mm;
+  height: 0;
+  overflow: hidden;
+}
+.resume-section:hover .custom-block-actions {
+  height: 22px;
+  margin-top: 1mm;
+}
+.btn-add-block {
+  border: none;
+  border-radius: 3px;
+  padding: 2px 5px;
+  background: transparent;
+  color: #6b7280;
+  font: 11px/1.4 system-ui, sans-serif;
+  cursor: pointer;
+}
+.btn-add-block:hover { background: #f3f4f6; color: #111827; }
 .entry-date[data-empty="true"] {
   display: inline-block;
   min-width: 8em;
@@ -1120,7 +1192,7 @@ body {
    ======================== */
 #resume-page {
   width: 210mm; min-height: 297mm; background: #fff;
-  box-shadow: 0 2px 16px rgba(0,0,0,0.12); position: relative; overflow: hidden;
+  box-shadow: 0 2px 16px rgba(0,0,0,0.12); position: relative; overflow: visible;
   font-family: "PingFang SC", -apple-system, BlinkMacSystemFont, "Hiragino Sans GB", "Microsoft YaHei", "Segoe UI", Arial, sans-serif;
 }
 #resume-content { box-sizing: border-box; color: #1a1a1a; }
@@ -1907,6 +1979,7 @@ body {
     height: 297mm;
     margin: 0;
     box-shadow: none;
+    overflow: hidden;
     page-break-after: avoid;
   }
 
@@ -1988,6 +2061,12 @@ body {
     <aside id="toolbar">
       <div class="toolbar-group toolbar-history-group">
         <button id="btn-undo" class="toolbar-icon-btn" type="button" title="撤回上一步（Ctrl+Z）" aria-label="撤回上一步（Ctrl+Z）" disabled>←</button>
+      </div>
+      <div class="toolbar-group toolbar-section-group">
+        <button id="btn-add-section" class="toolbar-btn toolbar-add-section" type="button" title="新增自定义板块">
+          <span aria-hidden="true">+</span>
+          <span>新增板块</span>
+        </button>
       </div>
       <div class="toolbar-group toolbar-theme-group">
         <span class="toolbar-label">风格</span>
@@ -2293,10 +2372,10 @@ const STATE_STORAGE_PREFIX = "resume-formatter:draft:";
 const LAST_DOCUMENT_KEY = "resume-formatter:last-document";
 
 /** @type {number} */
-const APP_VERSION = "1.0.0";
+const APP_VERSION = "1.1.0";
 
 /** @type {number} */
-const SCHEMA_VERSION_1 = 1;
+const SCHEMA_VERSION_1 = 2;
 
 /** @type {string} */
 const SECTION_TITLES = {
@@ -2501,9 +2580,12 @@ const SUPPORTED_SECTIONS = ["education", "experience", "projects", "skills"];
 /** @type {Record<string, string>} */
 const SECTION_ALIASES = {
   "教育经历": "education",
+  "教育背景": "education",
   "实习经历": "experience",
+  "工作经历": "experience",
   "项目经历": "projects",
   "技能": "skills",
+  "技能特长": "skills",
 };
 
 /**
@@ -2634,6 +2716,7 @@ function parseSections(lines, startLine, errors) {
   let currentSection = null;
   let currentEntry = null;
   let currentBullets = null;
+  let currentListBlock = null;
 
   for (let i = startLine; i < lines.length; i++) {
     const line = lines[i];
@@ -2645,23 +2728,18 @@ function parseSections(lines, startLine, errors) {
     // ## section
     if (trimmed.startsWith("## ") || trimmed === "##") {
       const rawName = trimmed.slice(2).trim();
-      const name = SECTION_ALIASES[rawName] || rawName;
+      const alias = SECTION_ALIASES[rawName] || rawName;
+      const name = SUPPORTED_SECTIONS.includes(alias) ? alias : "custom";
       if (name && !name.startsWith("#")) {
-        if (!SUPPORTED_SECTIONS.includes(name)) {
-          errors.push({
-            level: "error",
-            code: "UNKNOWN_SECTION",
-            section: name,
-            message: `未知栏目：${name}。支持：${SUPPORTED_SECTIONS.join("、")}。`,
-            line: i + 1,
-            suggestion: "请使用 Schema v1 定义的标准栏目。",
-          });
-          continue;
-        }
-
-        currentSection = { type: name, line: i + 1, entries: [] };
+        currentSection = {
+          type: name,
+          ...(name === "custom" ? { title: rawName, blocks: [] } : {}),
+          line: i + 1,
+          entries: [],
+        };
         currentEntry = null;
         currentBullets = null;
+        currentListBlock = null;
         sections.push(currentSection);
 
         // skills has no ### entries — use one synthetic entry
@@ -2704,8 +2782,15 @@ function parseSections(lines, startLine, errors) {
       }
       const name = trimmed.slice(3).trim();
       currentEntry = { name, role: "", date: "", location: "", bullets: [], line: i + 1 };
-      currentSection.entries.push(currentEntry);
+      if (currentSection.type === "custom") {
+        currentEntry.type = "entry";
+        currentEntry.id = "";
+        currentSection.blocks.push(currentEntry);
+      } else {
+        currentSection.entries.push(currentEntry);
+      }
       currentBullets = currentEntry.bullets;
+      currentListBlock = null;
       continue;
     }
 
@@ -2742,6 +2827,13 @@ function parseSections(lines, startLine, errors) {
 
     // - bullet
     if (trimmed.startsWith("- ")) {
+      if (currentSection?.type === "custom" && !currentBullets) {
+        if (!currentListBlock) {
+          currentListBlock = { type: "list", bullets: [], line: i + 1 };
+          currentSection.blocks.push(currentListBlock);
+        }
+        currentBullets = currentListBlock.bullets;
+      }
       if (!currentBullets) {
         errors.push({
           level: "warning",
@@ -2765,6 +2857,19 @@ function parseSections(lines, startLine, errors) {
         raw: content,
         content: parseBoldTokens(content, i, errors),
       });
+      continue;
+    }
+
+    // Free-form paragraph in a custom section.
+    if (currentSection?.type === "custom") {
+      currentSection.blocks.push({
+        type: "text",
+        line: i + 1,
+        content: parseBoldTokens(trimmed, i, errors),
+      });
+      currentEntry = null;
+      currentBullets = null;
+      currentListBlock = null;
       continue;
     }
 
@@ -2895,7 +3000,7 @@ function parseMarkdownLinkTokens(tokens) {
  */
 
 /** @type {string[]} */
-const ALLOWED_SECTION_TYPES = ["education", "experience", "projects", "skills"];
+const ALLOWED_SECTION_TYPES = ["education", "experience", "projects", "skills", "custom"];
 
 /**
  * Strip code fences (```json ... ```) from raw input.
@@ -2944,7 +3049,7 @@ function describeJsonError(raw, err) {
 
 /** @type {string} */
 const JSON_EXAMPLE = `{
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "resumeName": "谷雨-用户增长产品经理（虚构演示）",
   "profile": {
     "name": "谷雨",
@@ -3021,7 +3126,7 @@ const JSON_EXAMPLE = `{
 const SCHEMA_VERSION = 1;
 
 const MARKDOWN_EXAMPLE = `---
-schema_version: 1
+schema_version: 2
 resume_name: 谷雨-用户增长产品经理（虚构演示）
 name: 谷雨
 headline: 用户增长产品经理｜虚构演示数据
@@ -3087,7 +3192,7 @@ date: 2023.10–2024.01
 - **工具**：Figma、Axure、飞书文档
 - **语言**：英语 CET-6 578，具备英文资料阅读及业务沟通能力`;
 
-const PROMPT_PDF_TO_MD = `请完整读取我上传的 PDF 简历，并将其转换为 Resume Formatter 可以直接导入的 Markdown Schema v1。
+const PROMPT_PDF_TO_MD = `请完整读取我上传的 PDF 简历，并将其转换为 Resume Formatter 可以直接导入的 Markdown Schema v2。
 
 你的任务仅限于提取和结构化原简历，不负责评价、润色、优化或改写内容。
 
@@ -3109,13 +3214,13 @@ const PROMPT_PDF_TO_MD = `请完整读取我上传的 PDF 简历，并将其转�
 1. 只输出最终 Markdown。
 2. 不要使用 Markdown 代码块包裹。
 3. 不要输出说明、前言、注释、总结或转换报告。
-4. 必须严格符合 Resume Formatter Schema v1。
+4. 必须严格符合 Resume Formatter Schema v2。
 5. 不得创建原简历不存在的经历和数据。
 6. 原简历没有的栏目可以省略。
 7. 缺失的选填字段填写为空。
 8. 不得使用表格、引用块、图片、脚注、HTML 标签或嵌套列表。
 9. 每条经历内容使用一级 Bullet，以"- "开头。
-10. 只允许使用 education、experience、projects、skills 四个栏目。
+10. 优先使用 education、experience、projects、skills 预置栏目；原简历中的其他栏目保留原标题，不要强行归类。
 
 字段映射规则：
 
@@ -3135,7 +3240,7 @@ const PROMPT_PDF_TO_MD = `请完整读取我上传的 PDF 简历，并将其转�
 请严格使用以下格式：
 
 ---
-schema_version: 1
+schema_version: 2
 resume_name: 姓名-求职方向
 name: 姓名
 headline: 求职方向
@@ -3186,7 +3291,7 @@ location:
 
 开始前，请先完整读取我上传的 PDF，然后直接输出最终 Markdown。`;
 
-const PROMPT_DOCX_TO_MD = `请完整读取我上传的 Word / DOCX 简历，并将其转换为 Resume Formatter 可以直接导入的 Markdown Schema v1。
+const PROMPT_DOCX_TO_MD = `请完整读取我上传的 Word / DOCX 简历，并将其转换为 Resume Formatter 可以直接导入的 Markdown Schema v2。
 
 你的任务仅限于提取和结构化原简历，不负责评价、润色、优化或改写内容。
 
@@ -3208,18 +3313,18 @@ const PROMPT_DOCX_TO_MD = `请完整读取我上传的 Word / DOCX 简历，并�
 1. 只输出最终 Markdown。
 2. 不要使用 Markdown 代码块包裹。
 3. 不要输出说明、前言、注释、总结或转换报告。
-4. 必须严格符合 Resume Formatter Schema v1。
+4. 必须严格符合 Resume Formatter Schema v2。
 5. 不得创建原简历不存在的经历和数据。
 6. 原简历没有的栏目可以省略。
 7. 缺失的选填字段填写为空。
 8. 不得使用表格、引用块、图片、脚注、HTML 标签或嵌套列表。
 9. 每条经历内容使用一级 Bullet，以"- "开头。
-10. 只允许使用 education、experience、projects、skills 四个栏目。
+10. 优先使用 education、experience、projects、skills 预置栏目；原简历中的其他栏目保留原标题，不要强行归类。
 
-字段映射和标准格式与 Resume Formatter Schema v1 一致：
+字段映射和标准格式与 Resume Formatter Schema v2 一致：
 
 ---
-schema_version: 1
+schema_version: 2
 resume_name: 姓名-求职方向
 name: 姓名
 headline: 求职方向
@@ -3300,7 +3405,7 @@ const PROMPT_PDF_TO_JSON = `请完整读取我上传的 PDF 简历，并将其�
 请严格使用以下结构：
 
 {
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "resumeName": "姓名-求职方向",
   "profile": {
     "name": "",
@@ -3393,10 +3498,10 @@ const PROMPT_DOCX_TO_JSON = `请完整读取我上传的 Word / DOCX 简历，�
 7. 原简历没有的栏目可以省略。
 8. 不要输出 ID、时间戳、照片位置或排版状态。
 
-JSON 结构严格使用 Resume Formatter Schema v1：
+JSON 结构严格使用 Resume Formatter Schema v2：
 
 {
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "resumeName": "姓名-求职方向",
   "profile": {
     "name": "",
@@ -3489,8 +3594,8 @@ ${errorList}`;
 1. 返回修正后的完整 JSON，不要包含 \`\`\`json 代码块标记或额外文本。
 2. 修复所有错误和警告。
 3. 保持原有数据不变，只修正格式和缺失字段。
-4. schemaVersion 必须为 1。
-5. sections 的 type 只能是 education、experience、projects、skills。
+4. schemaVersion 必须为 2。
+5. sections 可以使用预置类型，也可以使用带 title 和 blocks 的 custom 类型。
 6. bullets 必须是字符串数组，可以包含 **加粗** 标记。
 7. profile 必须包含 name、headline、phone、email。`;
 
@@ -3540,15 +3645,15 @@ function importJsonResume(rawJson, fileName) {
       code: "MISSING_SCHEMA_VERSION",
       field: "schemaVersion",
       message: "缺少必填字段：schemaVersion。",
-      suggestion: "请添加 \"schemaVersion\": 1。",
+      suggestion: "请添加 \"schemaVersion\": 2。",
     });
-  } else if (data.schemaVersion !== 1) {
+  } else if (![1, 2].includes(data.schemaVersion)) {
     errors.push({
       level: "error",
       code: "UNSUPPORTED_SCHEMA_VERSION",
       field: "schemaVersion",
-      message: `不支持的 schemaVersion：${data.schemaVersion}，当前仅支持版本 1。`,
-      suggestion: "请将 schemaVersion 修改为 1。",
+      message: `不支持的 schemaVersion：${data.schemaVersion}，当前支持版本 1 和 2。`,
+      suggestion: "请将 schemaVersion 修改为 2。",
     });
   }
 
@@ -3629,12 +3734,12 @@ function importJsonResume(rawJson, fileName) {
           code: "UNKNOWN_SECTION",
           section: section.type,
           message: `未知栏目类型：${section.type}。支持：${ALLOWED_SECTION_TYPES.join("、")}。`,
-          suggestion: "请使用 education、experience、projects、skills 之一。",
+          suggestion: "请使用已支持的栏目类型。",
         });
         continue;
       }
 
-      if (sectionTypesSeen.has(section.type)) {
+      if (section.type !== "custom" && sectionTypesSeen.has(section.type)) {
         errors.push({
           level: "warning",
           code: "DUPLICATE_SECTION",
@@ -3643,7 +3748,31 @@ function importJsonResume(rawJson, fileName) {
           suggestion: "第一个之外的重复栏目将被保留但可能导致排版问题。",
         });
       }
-      sectionTypesSeen.add(section.type);
+      if (section.type !== "custom") sectionTypesSeen.add(section.type);
+
+      if (section.type === "custom") {
+        if (!section.title || typeof section.title !== "string") {
+          errors.push({
+            level: "error",
+            code: "MISSING_SECTION_TITLE",
+            section: "custom",
+            message: `${sectionLabel} 缺少 title 字段。`,
+            suggestion: "请添加 \"title\": \"板块名称\"。",
+          });
+        }
+        if (!Array.isArray(section.blocks)) {
+          errors.push({
+            level: "error",
+            code: "INVALID_BLOCKS",
+            section: "custom",
+            message: `${sectionLabel} 的 blocks 必须为数组。`,
+            suggestion: "请添加 \"blocks\": [ ... ]。",
+          });
+        } else {
+          validateJsonCustomBlocks(section.blocks, sectionLabel, errors);
+        }
+        continue;
+      }
 
       // Validate entries
       if (!Array.isArray(section.entries)) {
@@ -3778,11 +3907,13 @@ function importJsonResume(rawJson, fileName) {
   const projCount = data.sections.find((s) => s.type === "projects")?.entries?.length || 0;
   const skillSection = data.sections.find((s) => s.type === "skills");
   const skillCount = skillSection?.entries?.[0]?.bullets?.length || 0;
+  const customCount = data.sections.filter((section) => section.type === "custom").length;
 
   if (eduCount > 0) summaryItems.push(`${eduCount} 条教育经历`);
   if (expCount > 0) summaryItems.push(`${expCount} 条工作经历`);
   if (projCount > 0) summaryItems.push(`${projCount} 个项目`);
   if (skillCount > 0) summaryItems.push(`${skillCount} 条技能`);
+  if (customCount > 0) summaryItems.push(`${customCount} 个自定义栏目`);
 
   const errorCount = errors.filter((e) => e.level === "error").length;
   const warningCount = errors.filter((e) => e.level === "warning").length;
@@ -3812,6 +3943,7 @@ function buildStateFromJson(data, fileName) {
   state.source.fileName = fileName;
   state.source.importedAt = now;
   state.source.sourceType = "json";
+  state.schemaVersion = data.schemaVersion || 1;
 
   const profile = data.profile || {};
   state.profile.name = profile.name || "";
@@ -3827,6 +3959,7 @@ function buildStateFromJson(data, fileName) {
     id: generateId(),
     type: section.type,
     title: section.title || getSectionTitle(section.type),
+    blocks: (section.blocks || []).map((block) => buildJsonCustomBlock(block)),
     entries: (section.entries || []).map((entry) => ({
       id: generateId(),
       name: entry.name || "",
@@ -3846,10 +3979,66 @@ function buildStateFromJson(data, fileName) {
   return state;
 }
 
+function validateJsonCustomBlocks(blocks, sectionLabel, errors) {
+  blocks.forEach((block, index) => {
+    const label = `${sectionLabel}.blocks[${index}]`;
+    if (!block || typeof block !== "object" || !["text", "list", "entry"].includes(block.type)) {
+      errors.push({
+        level: "error",
+        code: "INVALID_BLOCK",
+        section: "custom",
+        message: `${label} 必须是 text、list 或 entry 内容块。`,
+      });
+      return;
+    }
+    if (block.type === "text" && typeof block.content !== "string") {
+      errors.push({ level: "error", code: "INVALID_BLOCK_CONTENT", section: "custom", message: `${label}.content 必须是字符串。` });
+    }
+    if (block.type === "list" && (!Array.isArray(block.items) || block.items.some((item) => typeof item !== "string"))) {
+      errors.push({ level: "error", code: "INVALID_BLOCK_ITEMS", section: "custom", message: `${label}.items 必须是字符串数组。` });
+    }
+    if (block.type === "entry" && typeof block.name !== "string") {
+      errors.push({ level: "error", code: "INVALID_BLOCK_ENTRY", section: "custom", message: `${label}.name 必须是字符串。` });
+    }
+    if (block.type === "entry" && block.bullets !== undefined
+      && (!Array.isArray(block.bullets) || block.bullets.some((item) => typeof item !== "string"))) {
+      errors.push({ level: "error", code: "INVALID_BLOCK_BULLETS", section: "custom", message: `${label}.bullets 必须是字符串数组。` });
+    }
+  });
+}
+
+function buildJsonCustomBlock(block) {
+  if (block.type === "text") {
+    return { id: generateId(), type: "text", content: parseBoldTokens(block.content || "", 0, []) };
+  }
+  if (block.type === "list") {
+    return {
+      id: generateId(),
+      type: "list",
+      bullets: (block.items || []).map((item) => ({
+        id: generateId(),
+        content: parseBoldTokens(item, 0, []),
+      })),
+    };
+  }
+  return {
+    id: generateId(),
+    type: "entry",
+    name: block.name || "",
+    role: block.role || "",
+    date: block.date || "",
+    location: block.location || "",
+    bullets: (block.bullets || []).map((item) => ({
+      id: generateId(),
+      content: parseBoldTokens(item, 0, []),
+    })),
+  };
+}
+
 // js/validator.js
 /**
  * Validator module.
- * Validates parsed Markdown against Schema v1 rules and builds a Resume State.
+ * Validates supported Markdown schemas and builds a Resume State.
  */
 
 /** @type {string[]} */
@@ -3898,13 +4087,13 @@ function validateAndBuildState(parseResult, fileName) {
       line: frontmatter._startLine + 1,
       suggestion: "请在 Frontmatter 中添加 schema_version: 1。",
     });
-  } else if (schemaVersion !== 1) {
+  } else if (![1, 2].includes(schemaVersion)) {
     errors.push({
       level: "error",
       code: "UNSUPPORTED_SCHEMA_VERSION",
-      message: `不支持的 schema_version：${frontmatter.schema_version}，当前仅支持版本 1。`,
+      message: `不支持的 schema_version：${frontmatter.schema_version}，当前支持版本 1 和 2。`,
       line: frontmatter._startLine + 1,
-      suggestion: "请将 schema_version 修改为 1。",
+      suggestion: "请将 schema_version 修改为 2。",
     });
   }
 
@@ -3925,7 +4114,7 @@ function validateAndBuildState(parseResult, fileName) {
   // 3. Validate sections
   let sectionTypesSeen = new Set();
   for (const section of sections) {
-    if (sectionTypesSeen.has(section.type)) {
+    if (section.type !== "custom" && sectionTypesSeen.has(section.type)) {
       errors.push({
         level: "warning",
         code: "DUPLICATE_SECTION",
@@ -3935,7 +4124,20 @@ function validateAndBuildState(parseResult, fileName) {
         suggestion: "第一个之外的重复栏目将被保留但可能导致排版问题。",
       });
     }
-    sectionTypesSeen.add(section.type);
+    if (section.type !== "custom") sectionTypesSeen.add(section.type);
+
+    if (section.type === "custom") {
+      if (!section.title) {
+        errors.push({
+          level: "error",
+          code: "MISSING_SECTION_TITLE",
+          message: "自定义栏目缺少标题。",
+          line: section.line,
+          suggestion: "请使用 ## 栏目名称。",
+        });
+      }
+      continue;
+    }
 
     for (const entry of (section.entries || [])) {
       // Validate entry fields
@@ -4026,11 +4228,13 @@ function validateAndBuildState(parseResult, fileName) {
   const expCount = sections.find((s) => s.type === "experience")?.entries?.length || 0;
   const projCount = sections.find((s) => s.type === "projects")?.entries?.length || 0;
   const skillCount = sections.find((s) => s.type === "skills")?.entries?.[0]?.bullets?.length || 0;
+  const customCount = sections.filter((s) => s.type === "custom").length;
 
   if (eduCount > 0) summaryItems.push(`${eduCount} 条教育经历`);
   if (expCount > 0) summaryItems.push(`${expCount} 条工作经历`);
   if (projCount > 0) summaryItems.push(`${projCount} 个项目`);
   if (skillCount > 0) summaryItems.push(`${skillCount} 条技能`);
+  if (customCount > 0) summaryItems.push(`${customCount} 个自定义栏目`);
 
   const errorCount = errors.filter((e) => e.level === "error").length;
   const warningCount = errors.filter((e) => e.level === "warning").length;
@@ -4070,10 +4274,12 @@ function buildState(frontmatter, sections, fileName) {
   state.profile.github = frontmatter.github || "";
   state.photo.source = frontmatter.photo || "";
 
+  state.schemaVersion = Number.parseInt(frontmatter.schema_version, 10) || 1;
   state.sections = sections.map((section) => ({
     id: generateId(),
     type: section.type,
     title: section.title || getSectionTitle(section.type),
+    blocks: (section.blocks || []).map((block) => buildCustomBlock(block)),
     entries: (section.entries || []).map((entry) => ({
       id: generateId(),
       name: entry.name || "",
@@ -4091,6 +4297,38 @@ function buildState(frontmatter, sections, fileName) {
   state.importSnapshot = createImportSnapshot(state);
 
   return state;
+}
+
+function buildCustomBlock(block) {
+  if (block.type === "text") {
+    return {
+      id: generateId(),
+      type: "text",
+      content: block.content || [{ type: "text", value: "" }],
+    };
+  }
+  if (block.type === "list") {
+    return {
+      id: generateId(),
+      type: "list",
+      bullets: (block.bullets || []).map((bullet) => ({
+        id: generateId(),
+        content: bullet.content || [{ type: "text", value: bullet.raw || "" }],
+      })),
+    };
+  }
+  return {
+    id: generateId(),
+    type: "entry",
+    name: block.name || "",
+    role: block.role || "",
+    date: block.date || "",
+    location: block.location || "",
+    bullets: (block.bullets || []).map((bullet) => ({
+      id: generateId(),
+      content: bullet.content || [{ type: "text", value: bullet.raw || "" }],
+    })),
+  };
 }
 
 // js/renderer.js
@@ -4269,9 +4507,28 @@ function renderSection(section) {
   titleEl.setAttribute("aria-label", "编辑栏目标题");
   sectionEl.appendChild(titleEl);
 
+  if (section.type === "custom") {
+    const deleteSectionButton = document.createElement("button");
+    deleteSectionButton.className = "btn-del-section no-print";
+    deleteSectionButton.type = "button";
+    deleteSectionButton.textContent = "×";
+    deleteSectionButton.title = "删除该板块";
+    deleteSectionButton.setAttribute("aria-label", `删除${section.title || "该板块"}`);
+    deleteSectionButton.dataset.sectionId = section.id;
+    sectionEl.appendChild(deleteSectionButton);
+  }
+
   const divider = document.createElement("div");
   divider.className = "section-divider";
   sectionEl.appendChild(divider);
+
+  if (section.type === "custom") {
+    for (const block of (section.blocks || [])) {
+      sectionEl.appendChild(renderCustomBlock(block));
+    }
+    sectionEl.appendChild(renderCustomBlockActions(section.id));
+    return sectionEl;
+  }
 
   // Skills: bullets directly, no entry header, no inline add
   if (section.type === "skills") {
@@ -4296,6 +4553,68 @@ function renderSection(section) {
   return sectionEl;
 }
 
+function renderCustomBlock(block) {
+  const wrapper = document.createElement("div");
+  wrapper.className = `custom-block custom-block-${block.type}`;
+  wrapper.dataset.blockId = block.id;
+
+  if (block.type === "text") {
+    const text = document.createElement("p");
+    text.className = "custom-text editable-placeholder";
+    text.contentEditable = "plaintext-only";
+    text.dataset.textBlockId = block.id;
+    text.dataset.empty = serializeInlineText(block.content) ? "false" : "true";
+    text.dataset.placeholder = "输入内容";
+    text.setAttribute("aria-label", "编辑正文");
+    text.appendChild(renderInlineContent(block.content || []));
+    wrapper.appendChild(text);
+  } else if (block.type === "list") {
+    const list = document.createElement("ul");
+    list.className = "custom-list entry-bullets";
+    list.dataset.entryId = block.id;
+    for (const bullet of (block.bullets || [])) list.appendChild(renderBulletRow(bullet));
+    wrapper.appendChild(list);
+  } else {
+    wrapper.appendChild(renderEntry(block));
+  }
+
+  if (block.type !== "entry") {
+    const deleteButton = document.createElement("button");
+    deleteButton.className = "btn-del-block no-print";
+    deleteButton.type = "button";
+    deleteButton.textContent = "×";
+    deleteButton.title = "删除该内容";
+    deleteButton.setAttribute("aria-label", "删除该内容");
+    deleteButton.dataset.blockId = block.id;
+    wrapper.appendChild(deleteButton);
+  }
+  return wrapper;
+}
+
+function serializeInlineText(tokens) {
+  return (tokens || []).map((token) => token.value || "").join("");
+}
+
+function renderCustomBlockActions(sectionId) {
+  const actions = document.createElement("div");
+  actions.className = "custom-block-actions no-print";
+  actions.setAttribute("aria-label", "新增板块内容");
+  [
+    ["text", "+ 正文"],
+    ["list", "+ 列表"],
+    ["entry", "+ 条目"],
+  ].forEach(([type, label]) => {
+    const button = document.createElement("button");
+    button.className = "btn-add-block";
+    button.type = "button";
+    button.dataset.sectionId = sectionId;
+    button.dataset.blockType = type;
+    button.textContent = label;
+    actions.appendChild(button);
+  });
+  return actions;
+}
+
 /**
  * Render a single entry with delete button.
  * @param {object} entry
@@ -4318,6 +4637,9 @@ function renderEntry(entry) {
   nameSpan.textContent = entry.name;
   nameSpan.contentEditable = "plaintext-only";
   nameSpan.dataset.entryField = "name";
+  nameSpan.dataset.empty = entry.name ? "false" : "true";
+  nameSpan.dataset.placeholder = "名称";
+  nameSpan.setAttribute("aria-label", "编辑条目名称");
   leftEl.appendChild(nameSpan);
 
   const roleSpan = document.createElement("span");
@@ -4325,6 +4647,9 @@ function renderEntry(entry) {
   roleSpan.textContent = entry.role || "";
   roleSpan.contentEditable = "plaintext-only";
   roleSpan.dataset.entryField = "role";
+  roleSpan.dataset.empty = entry.role ? "false" : "true";
+  roleSpan.dataset.placeholder = "角色或说明";
+  roleSpan.setAttribute("aria-label", "编辑角色或说明");
   leftEl.appendChild(roleSpan);
 
   headerEl.appendChild(leftEl);
@@ -4544,6 +4869,8 @@ function updateAddGutter(state) {
     const sectionEl = document.querySelector(`section[data-section-id="${section.id}"]`);
     if (!sectionEl) return;
 
+    if (section.type === "custom") return;
+
     if (section.type === "skills") {
       // Skills: bullet add at bottom of list
       const listEl = sectionEl.querySelector(".skills-list");
@@ -4644,6 +4971,20 @@ function clearDirty() {
   if (btn) btn.classList.remove("toolbar-btn-dirty");
 }
 
+function getSectionEntries(section) {
+  return [
+    ...(section.entries || []),
+    ...(section.blocks || []).filter((block) => block.type === "entry"),
+  ];
+}
+
+function getSectionBulletContainers(section) {
+  return [
+    ...getSectionEntries(section),
+    ...(section.blocks || []).filter((block) => block.type === "list"),
+  ];
+}
+
 /**
  * Initialize editor: event delegation on #resume-content.
  */
@@ -4680,14 +5021,14 @@ function initEditor() {
     if (e.target === _focusedHistoryTarget) {
       _focusedHistoryTarget = null;
       _lastInputHistory = {
-        key: e.target.dataset.bulletId || e.target.dataset.profileField || e.target.dataset.entryField || e.target.dataset.sectionId || "editor",
+        key: e.target.dataset.bulletId || e.target.dataset.textBlockId || e.target.dataset.profileField || e.target.dataset.entryField || e.target.dataset.sectionId || "editor",
         type: e.inputType,
         time: Date.now(),
       };
       return;
     }
     const now = Date.now();
-    const key = e.target.dataset.bulletId || e.target.dataset.profileField || e.target.dataset.entryField || e.target.dataset.sectionId || "editor";
+    const key = e.target.dataset.bulletId || e.target.dataset.textBlockId || e.target.dataset.profileField || e.target.dataset.entryField || e.target.dataset.sectionId || "editor";
     const canMerge = _lastInputHistory && _lastInputHistory.key === key
       && _lastInputHistory.type === e.inputType && now - _lastInputHistory.time < 800;
     if (!canMerge) pushUndoState();
@@ -4703,6 +5044,7 @@ function initEditor() {
       addBulletAfter(el);
       return;
     }
+    if (el.classList.contains("custom-text")) return;
     e.preventDefault();
     el.blur();
   });
@@ -4716,6 +5058,7 @@ function initEditor() {
 
   // Sync on blur
   content.addEventListener("blur", (e) => {
+    if (!e.target.matches("[contenteditable]")) return;
     syncElementToState(e.target);
     if (e.target === _focusedHistoryTarget) _focusedHistoryTarget = null;
   }, true);
@@ -4735,6 +5078,9 @@ function initEditor() {
     else if (btn.classList.contains("btn-add-bullet"))  { e.stopPropagation(); addBullet(btn.dataset.entryId); }
     else if (btn.classList.contains("btn-del-entry"))   { e.stopPropagation(); deleteEntry(btn.dataset.entryId); }
     else if (btn.classList.contains("btn-add-entry"))   { e.stopPropagation(); addEntry(btn.dataset.sectionId); }
+    else if (btn.classList.contains("btn-add-block"))   { e.stopPropagation(); addCustomBlock(btn.dataset.sectionId, btn.dataset.blockType); }
+    else if (btn.classList.contains("btn-del-block"))   { e.stopPropagation(); deleteCustomBlock(btn.dataset.blockId); }
+    else if (btn.classList.contains("btn-del-section")) { e.stopPropagation(); deleteSection(btn.dataset.sectionId); }
   });
 
   initSpacingHandles();
@@ -5217,7 +5563,7 @@ function clampFontDelta(value) {
 
 function findBulletById(bulletId) {
   for (const section of getState().sections) {
-    for (const entry of section.entries) {
+    for (const entry of getSectionBulletContainers(section)) {
       const bullet = entry.bullets.find((item) => item.id === bulletId);
       if (bullet) return bullet;
     }
@@ -5231,6 +5577,7 @@ function getBlockFormatKey(target) {
     const entry = target.closest("[data-entry-id]");
     return entry ? `entry:${entry.dataset.entryId}:${target.dataset.entryField}` : null;
   }
+  if (target.dataset.textBlockId) return `text:${target.dataset.textBlockId}:content`;
   return null;
 }
 
@@ -5238,7 +5585,9 @@ function getBlockFormatSelector(key) {
   const [kind, id, field] = key.split(":");
   return kind === "profile"
     ? `[data-profile-field="${CSS.escape(id)}"]`
-    : `[data-entry-id="${CSS.escape(id)}"] [data-entry-field="${CSS.escape(field)}"]`;
+    : kind === "text"
+      ? `[data-text-block-id="${CSS.escape(id)}"]`
+      : `[data-entry-id="${CSS.escape(id)}"] [data-entry-field="${CSS.escape(field)}"]`;
 }
 
 function isElementBold(element) {
@@ -5465,7 +5814,7 @@ function addBulletAfter(bulletSpan) {
   const state = getState();
 
   for (const section of state.sections) {
-    for (const entry of section.entries) {
+    for (const entry of getSectionBulletContainers(section)) {
       const idx = entry.bullets.findIndex(b => b.id === bulletId);
       if (idx === -1) continue;
 
@@ -5499,7 +5848,7 @@ function addBulletAfter(bulletSpan) {
 function addBullet(entryId) {
   const state = getState();
   for (const section of state.sections) {
-    for (const entry of section.entries) {
+    for (const entry of getSectionBulletContainers(section)) {
       if (entry.id !== entryId) continue;
 
       const newBullet = { id: generateId(), content: [{ type: "text", value: "" }] };
@@ -5532,7 +5881,7 @@ function addBullet(entryId) {
 function deleteBullet(bulletId) {
   const state = getState();
   for (const section of state.sections) {
-    for (const entry of section.entries) {
+    for (const entry of getSectionBulletContainers(section)) {
       const idx = entry.bullets.findIndex(b => b.id === bulletId);
       if (idx === -1) continue;
       pushUndoState();
@@ -5549,6 +5898,105 @@ function deleteBullet(bulletId) {
 /** ========================
  *  Entry operations
  *  ======================== */
+
+function addSection(title) {
+  const state = getState();
+  const section = {
+    id: generateId(),
+    type: "custom",
+    title: title || "未命名板块",
+    entries: [],
+    blocks: [],
+  };
+  pushUndoState();
+  state.schemaVersion = 2;
+  state.sections.push(section);
+  addCustomBlock(section.id, "text", false);
+  renderResume(state);
+  markDirty();
+  requestAnimationFrame(() => {
+    document.querySelector(`[data-section-id="${CSS.escape(section.id)}"]`)?.scrollIntoView({ block: "center" });
+    focusWithoutUndoSnapshot(document.querySelector(`[data-section-id="${CSS.escape(section.id)}"] .custom-text`));
+    updateA4Status();
+  });
+}
+
+function addCustomBlock(sectionId, blockType, recordHistory = true) {
+  const state = getState();
+  const section = state.sections.find((item) => item.id === sectionId && item.type === "custom");
+  if (!section) return;
+  if (recordHistory) pushUndoState();
+  if (!Array.isArray(section.blocks)) section.blocks = [];
+
+  let block;
+  if (blockType === "list") {
+    block = {
+      id: generateId(),
+      type: "list",
+      bullets: [{ id: generateId(), content: [{ type: "text", value: "" }] }],
+    };
+  } else if (blockType === "entry") {
+    block = {
+      id: generateId(),
+      type: "entry",
+      name: "",
+      role: "",
+      date: "",
+      location: "",
+      bullets: [{ id: generateId(), content: [{ type: "text", value: "" }] }],
+    };
+  } else {
+    block = { id: generateId(), type: "text", content: [{ type: "text", value: "" }] };
+  }
+  section.blocks.push(block);
+  renderResume(state);
+  markDirty();
+  requestAnimationFrame(() => {
+    const wrapper = document.querySelector(`[data-block-id="${CSS.escape(block.id)}"]`);
+    const target = wrapper?.querySelector("[contenteditable]");
+    focusWithoutUndoSnapshot(target);
+    updateA4Status();
+  });
+}
+
+function deleteCustomBlock(blockId) {
+  const state = getState();
+  for (const section of state.sections) {
+    const index = (section.blocks || []).findIndex((block) => block.id === blockId);
+    if (index === -1) continue;
+    pushUndoState();
+    section.blocks.splice(index, 1);
+    renderResume(state);
+    markDirty();
+    requestAnimationFrame(() => updateA4Status());
+    return;
+  }
+}
+
+function deleteSection(sectionId) {
+  const state = getState();
+  const index = state.sections.findIndex((section) => section.id === sectionId);
+  if (index === -1) return;
+  const title = state.sections[index].title || "该板块";
+  showDialog({
+    title: "删除板块",
+    message: `确定要删除“${title}”及其中的所有内容吗？`,
+    buttons: [
+      { text: "取消" },
+      {
+        text: "删除",
+        danger: true,
+        action: () => {
+          pushUndoState();
+          state.sections.splice(index, 1);
+          renderResume(state);
+          markDirty();
+          requestAnimationFrame(() => updateA4Status());
+        },
+      },
+    ],
+  });
+}
 
 /**
  * Add a new empty entry to a section.
@@ -5590,9 +6038,12 @@ function addEntry(sectionId) {
 function deleteEntry(entryId) {
   const state = getState();
   for (const section of state.sections) {
-    const idx = section.entries.findIndex(e => e.id === entryId);
+    const collection = (section.entries || []).some((entry) => entry.id === entryId)
+      ? section.entries
+      : section.blocks || [];
+    const idx = collection.findIndex(e => e.id === entryId && (!e.type || e.type === "entry"));
     if (idx === -1) continue;
-    const entryName = section.entries[idx].name || "该条目";
+    const entryName = collection[idx].name || "该条目";
 
     showDialog({
       title: "删除条目",
@@ -5604,9 +6055,9 @@ function deleteEntry(entryId) {
           primary: false,
           action: () => {
             pushUndoState();
-            section.entries.splice(idx, 1);
+            collection.splice(idx, 1);
             const el = document.querySelector(`[data-entry-id="${entryId}"].resume-entry`);
-            if (el) el.remove();
+            if (el) (el.closest(".custom-block") || el).remove();
             markDirty();
             requestAnimationFrame(() => updateAddGutter(state));
           },
@@ -5658,10 +6109,10 @@ function syncElementToState(el) {
     if (!entryEl) return;
     const entryId = entryEl.dataset.entryId;
     for (const section of state.sections) {
-      for (const entry of section.entries) {
+      for (const entry of getSectionEntries(section)) {
         if (entry.id === entryId) {
           entry[field === "date" ? "date" : field] = raw;
-          if (field === "date") el.dataset.empty = raw ? "false" : "true";
+          el.dataset.empty = raw ? "false" : "true";
           return;
         }
       }
@@ -5670,20 +6121,31 @@ function syncElementToState(el) {
   }
 
   // Section title
-  if (el.dataset.sectionId) {
+  if (el.classList.contains("section-title") && el.dataset.sectionId) {
     const section = state.sections.find((item) => item.id === el.dataset.sectionId);
     if (section) {
-      section.title = raw || getSectionTitle(section.type);
+      section.title = raw || (section.type === "custom" ? "未命名板块" : getSectionTitle(section.type));
       el.dataset.empty = raw ? "false" : "true";
     }
     return;
+  }
+
+  // Free-form text block
+  if (el.dataset.textBlockId) {
+    for (const section of state.sections) {
+      const block = (section.blocks || []).find((item) => item.id === el.dataset.textBlockId);
+      if (!block) continue;
+      block.content = tokensFromEditableElement(el);
+      el.dataset.empty = raw ? "false" : "true";
+      return;
+    }
   }
 
   // Bullet content
   if (el.dataset.bulletId) {
     const bulletId = el.dataset.bulletId;
     for (const section of state.sections) {
-      for (const entry of section.entries) {
+      for (const entry of getSectionBulletContainers(section)) {
         for (const bullet of entry.bullets) {
           if (bullet.id === bulletId) {
             bullet.content = tokensFromEditableElement(el);
@@ -5925,13 +6387,13 @@ function loadInitialState() {
  */
 
 /**
- * Serialize Resume State to Schema v1 Markdown.
+ * Serialize Resume State to Schema v2 Markdown.
  * @param {object} state
  * @returns {string}
  */
 function serializeStateToMarkdown(state) {
   const cleanScalar = (value) => String(value || "").replace(/[\r\n]+/g, " ").trim();
-  const lines = ["---", "schema_version: 1"];
+  const lines = ["---", "schema_version: 2"];
   const frontmatter = [
     ["resume_name", state.resumeName],
     ["name", state.profile.name],
@@ -5952,27 +6414,50 @@ function serializeStateToMarkdown(state) {
   lines.push("---", "");
 
   (state.sections || []).forEach((section) => {
+    if (section.type === "custom") {
+      lines.push("## custom", "", `title: ${cleanScalar(section.title) || "未命名板块"}`, "");
+      (section.blocks || []).forEach((block) => {
+        if (block.type === "text") {
+          const value = serializeInlineMarkdown(block.content);
+          if (value) lines.push(value, "");
+          return;
+        }
+        if (block.type === "list") {
+          (block.bullets || []).forEach((bullet) => {
+            lines.push(`- ${serializeInlineMarkdown(bullet.content)}`);
+          });
+          lines.push("");
+          return;
+        }
+        serializeEntryToMarkdown(lines, block, cleanScalar);
+      });
+      return;
+    }
     const defaultTitle = getSectionTitle(section.type);
     const title = cleanScalar(section.title);
     lines.push(`## ${defaultTitle}`, "");
     if (title && title !== defaultTitle) lines.push(`title: ${title}`, "");
     (section.entries || []).forEach((entry) => {
-      if (section.type !== "skills") {
-        lines.push(`### ${cleanScalar(entry.name)}`);
-        if (entry.role) lines.push(`role: ${cleanScalar(entry.role)}`);
-        if (entry.date) lines.push(`date: ${cleanScalar(entry.date)}`);
-        if (entry.location) lines.push(`location: ${cleanScalar(entry.location)}`);
+      if (section.type === "skills") {
+        (entry.bullets || []).forEach((bullet) => lines.push(`- ${serializeInlineMarkdown(bullet.content)}`));
         lines.push("");
-      }
-
-      (entry.bullets || []).forEach((bullet) => {
-        lines.push(`- ${serializeInlineMarkdown(bullet.content)}`);
-      });
-      lines.push("");
+      } else serializeEntryToMarkdown(lines, entry, cleanScalar);
     });
   });
 
   return lines.join("\n").replace(/\n{3,}/g, "\n\n").trimEnd() + "\n";
+}
+
+function serializeEntryToMarkdown(lines, entry, cleanScalar) {
+  lines.push(`### ${cleanScalar(entry.name)}`);
+  if (entry.role) lines.push(`role: ${cleanScalar(entry.role)}`);
+  if (entry.date) lines.push(`date: ${cleanScalar(entry.date)}`);
+  if (entry.location) lines.push(`location: ${cleanScalar(entry.location)}`);
+  lines.push("");
+  (entry.bullets || []).forEach((bullet) => {
+    lines.push(`- ${serializeInlineMarkdown(bullet.content)}`);
+  });
+  lines.push("");
 }
 
 /**
@@ -5993,7 +6478,7 @@ function serializeInlineMarkdown(tokens) {
 /** Serialize Resume State to the supported JSON import schema. */
 function serializeStateToJson(state) {
   const data = {
-    schemaVersion: 1,
+    schemaVersion: 2,
     resumeName: state.resumeName || "",
     profile: {
       name: state.profile.name || "",
@@ -6008,6 +6493,9 @@ function serializeStateToJson(state) {
     sections: (state.sections || []).map((section) => ({
       type: section.type,
       title: section.title || getSectionTitle(section.type),
+      ...((section.type === "custom") ? {
+        blocks: (section.blocks || []).map((block) => serializeCustomBlockToJson(block)),
+      } : {}),
       entries: (section.entries || []).map((entry) => ({
         name: entry.name || "",
         role: entry.role || "",
@@ -6018,6 +6506,26 @@ function serializeStateToJson(state) {
     })),
   };
   return JSON.stringify(data, null, 2) + "\n";
+}
+
+function serializeCustomBlockToJson(block) {
+  if (block.type === "text") {
+    return { type: "text", content: serializeInlineMarkdown(block.content) };
+  }
+  if (block.type === "list") {
+    return {
+      type: "list",
+      items: (block.bullets || []).map((bullet) => serializeInlineMarkdown(bullet.content)),
+    };
+  }
+  return {
+    type: "entry",
+    name: block.name || "",
+    role: block.role || "",
+    date: block.date || "",
+    location: block.location || "",
+    bullets: (block.bullets || []).map((bullet) => serializeInlineMarkdown(bullet.content)),
+  };
 }
 
 /**
@@ -6837,6 +7345,19 @@ function wireToolbar() {
   const btnImport = document.getElementById("btn-import-md");
   const btnExportPdf = document.getElementById("btn-export-pdf");
   const fileInput = document.getElementById("file-input-md");
+
+  const btnAddSection = document.getElementById("btn-add-section");
+  if (btnAddSection) {
+    btnAddSection.addEventListener("click", () => {
+      showInputDialog({
+        title: "新增板块",
+        message: "板块名称可以随时在简历中修改。",
+        defaultValue: "",
+        confirmText: "创建",
+        onSubmit: addSection,
+      });
+    });
+  }
 
   // Import MD
   if (btnImport && fileInput) {

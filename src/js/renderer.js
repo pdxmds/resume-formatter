@@ -148,21 +148,15 @@ function renderSection(section) {
   sectionEl.dataset.sectionId = section.id;
   sectionEl.dataset.sectionType = section.type;
 
-  const dragHandle = document.createElement("button");
-  dragHandle.className = "section-drag-handle no-print";
-  dragHandle.type = "button";
-  dragHandle.dataset.sectionId = section.id;
-  dragHandle.textContent = "↕";
-  dragHandle.title = `上下拖动${section.title}；双击恢复`;
-  dragHandle.setAttribute("role", "slider");
-  dragHandle.setAttribute("aria-label", `上下调整${section.title}的位置`);
-  dragHandle.setAttribute("aria-valuemin", "-100");
-  dragHandle.setAttribute("aria-valuemax", "100");
-  dragHandle.setAttribute("aria-orientation", "vertical");
-  const sectionSpacingMm = section.spacingBefore !== undefined ? section.spacingBefore : 0;
-  dragHandle.setAttribute("aria-valuenow", String(sectionSpacingMm));
-  dragHandle.setAttribute("aria-valuetext", `${sectionSpacingMm.toFixed(1)} 毫米`);
-  sectionEl.appendChild(dragHandle);
+  const reorderHandle = document.createElement("button");
+  reorderHandle.className = "section-reorder-handle no-print";
+  reorderHandle.type = "button";
+  reorderHandle.dataset.sectionId = section.id;
+  reorderHandle.textContent = "↕";
+  reorderHandle.title = `拖动调整${section.title}的全局顺序`;
+  reorderHandle.setAttribute("aria-label", `调整${section.title}的全局顺序`);
+  reorderHandle.setAttribute("aria-keyshortcuts", "ArrowUp ArrowDown");
+  sectionEl.appendChild(reorderHandle);
 
   const titleEl = document.createElement("h2");
   titleEl.className = "section-title";
@@ -213,7 +207,7 @@ function renderSection(section) {
 
   // Other sections — no inline add button, gutter handles it
   for (const entry of section.entries) {
-    sectionEl.appendChild(renderEntry(entry));
+    sectionEl.appendChild(renderEntry(entry, section.type === "experience" ? section.id : ""));
   }
 
   return sectionEl;
@@ -284,12 +278,25 @@ function renderCustomBlockActions(sectionId) {
 /**
  * Render a single entry with delete button.
  * @param {object} entry
+ * @param {string} [reorderSectionId]
  * @returns {HTMLElement}
  */
-function renderEntry(entry) {
+function renderEntry(entry, reorderSectionId = "") {
   const entryEl = document.createElement("div");
   entryEl.className = "resume-entry";
   entryEl.dataset.entryId = entry.id;
+
+  if (reorderSectionId) {
+    const reorderHandle = document.createElement("button");
+    reorderHandle.className = "entry-reorder-handle no-print";
+    reorderHandle.type = "button";
+    reorderHandle.dataset.entryId = entry.id;
+    reorderHandle.dataset.sectionId = reorderSectionId;
+    reorderHandle.textContent = "↕";
+    reorderHandle.title = `拖动调整${entry.name || "该经历"}的顺序`;
+    reorderHandle.setAttribute("aria-label", `调整${entry.name || "该经历"}的顺序`);
+    entryEl.appendChild(reorderHandle);
+  }
 
   // Header
   const headerEl = document.createElement("div");

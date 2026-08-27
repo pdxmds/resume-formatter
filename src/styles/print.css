@@ -43,6 +43,8 @@
   .btn-del-entry,
   .btn-add-bullet,
   .btn-add-entry,
+  .section-reorder-handle,
+  .entry-reorder-handle,
   .bullet-add-row,
   .entry-add-row {
     display: none !important;

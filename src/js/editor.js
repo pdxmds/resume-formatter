@@ -140,7 +140,8 @@ function initEditor() {
     else if (btn.classList.contains("btn-del-section")) { e.stopPropagation(); deleteSection(btn.dataset.sectionId); }
   });
 
-  initSpacingHandles();
+  initSectionReordering();
+  initEntryReordering();
   initHeaderPositionDrag();
   initSelectionFormatting();
 }
@@ -1078,7 +1079,7 @@ function addEntry(sectionId) {
   const sectionEl = document.querySelector(`section[data-section-id="${sectionId}"]`);
   if (sectionEl) {
     const addRow = sectionEl.querySelector(".entry-add-row");
-    sectionEl.insertBefore(renderEntry(newEntry), addRow);
+    sectionEl.insertBefore(renderEntry(newEntry, section.type === "experience" ? section.id : ""), addRow);
     // Focus name field
     const nameSpan = sectionEl.querySelector(`[data-entry-id="${newEntry.id}"] .entry-name`);
     focusWithoutUndoSnapshot(nameSpan);
@@ -1123,6 +1124,258 @@ function deleteEntry(entryId) {
     });
     return;
   }
+}
+
+function reorderEntry(sectionId, entryId, direction) {
+  const state = getState();
+  const section = state.sections.find((item) => item.id === sectionId && item.type === "experience");
+  if (!section) return false;
+  const index = section.entries.findIndex((entry) => entry.id === entryId);
+  const nextIndex = Math.max(0, Math.min(section.entries.length - 1, index + direction));
+  if (index < 0 || nextIndex === index) return false;
+  pushUndoState();
+  const [entry] = section.entries.splice(index, 1);
+  section.entries.splice(nextIndex, 0, entry);
+  renderResume(state);
+  markDirty();
+  requestAnimationFrame(() => {
+    document.querySelector(`.entry-reorder-handle[data-entry-id="${CSS.escape(entryId)}"]`)?.focus();
+    updateA4Status();
+  });
+  return true;
+}
+
+function initEntryReordering() {
+  const container = document.getElementById("resume-sections");
+  if (!container) return;
+
+  let activeHandle = null;
+  let activeEntry = null;
+  let activeSection = null;
+  let startOrder = [];
+
+  const resetDrag = () => {
+    activeHandle?.classList.remove("dragging");
+    activeEntry?.classList.remove("entry-reordering");
+    activeSection?.classList.remove("entry-reorder-active");
+    activeHandle = null;
+    activeEntry = null;
+    activeSection = null;
+    startOrder = [];
+  };
+
+  container.addEventListener("pointerdown", (event) => {
+    const handle = event.target.closest(".entry-reorder-handle");
+    if (!handle || event.button !== 0) return;
+    const entry = handle.closest(".resume-entry");
+    const section = handle.closest('.resume-section[data-section-type="experience"]');
+    if (!entry || !section) return;
+    event.preventDefault();
+    event.stopPropagation();
+    activeHandle = handle;
+    activeEntry = entry;
+    activeSection = section;
+    startOrder = Array.from(section.querySelectorAll(":scope > .resume-entry"), (item) => item.dataset.entryId);
+    handle.classList.add("dragging");
+    entry.classList.add("entry-reordering");
+    section.classList.add("entry-reorder-active");
+  });
+
+  window.addEventListener("pointermove", (event) => {
+    if (!activeEntry || !activeSection) return;
+    event.preventDefault();
+    const siblings = Array.from(activeSection.querySelectorAll(":scope > .resume-entry"))
+      .filter((item) => item !== activeEntry);
+    const before = siblings.find((item) => {
+      const rect = item.getBoundingClientRect();
+      return event.clientY < rect.top + rect.height / 2;
+    });
+    if (before) activeSection.insertBefore(activeEntry, before);
+    else activeSection.appendChild(activeEntry);
+  });
+
+  window.addEventListener("pointerup", () => {
+    if (!activeEntry || !activeSection) return;
+    const finalOrder = Array.from(activeSection.querySelectorAll(":scope > .resume-entry"), (item) => item.dataset.entryId);
+    const changed = finalOrder.some((id, index) => id !== startOrder[index]);
+    if (changed) {
+      const state = getState();
+      const sectionId = activeSection.dataset.sectionId;
+      const section = state.sections.find((item) => item.id === sectionId && item.type === "experience");
+      if (section) {
+        pushUndoState();
+        if (applyEntryOrder(section, finalOrder)) markDirty();
+      }
+    }
+    resetDrag();
+    requestAnimationFrame(() => {
+      updateAddGutter(getState());
+      updateA4Status();
+    });
+  });
+
+  window.addEventListener("pointercancel", () => {
+    if (!activeEntry) return;
+    resetDrag();
+    renderResume(getState());
+  });
+
+  container.addEventListener("keydown", (event) => {
+    const handle = event.target.closest(".entry-reorder-handle");
+    if (!handle || !["ArrowUp", "ArrowDown"].includes(event.key)) return;
+    event.preventDefault();
+    reorderEntry(handle.dataset.sectionId, handle.dataset.entryId, event.key === "ArrowUp" ? -1 : 1);
+  });
+}
+
+function reorderSection(sectionId, direction) {
+  const state = getState();
+  const index = state.sections.findIndex((section) => section.id === sectionId);
+  const nextIndex = Math.max(0, Math.min(state.sections.length - 1, index + direction));
+  if (index < 0 || nextIndex === index) return false;
+  pushUndoState();
+  const [section] = state.sections.splice(index, 1);
+  section.spacingBefore = Math.max(0, Number(section.spacingBefore) || 0);
+  state.sections.splice(nextIndex, 0, section);
+  renderResume(state);
+  markDirty();
+  requestAnimationFrame(() => {
+    document.querySelector(`.section-reorder-handle[data-section-id="${CSS.escape(sectionId)}"]`)?.focus();
+    updateA4Status();
+  });
+  return true;
+}
+
+function initSectionReordering() {
+  const container = document.getElementById("resume-sections");
+  if (!container) return;
+
+  let activeHandle = null;
+  let activeSection = null;
+  let activeSpacing = null;
+  let startOrder = [];
+  let lastPointerY = 0;
+  let scrollFrame = 0;
+
+  const getScrollContext = () => {
+    const workspace = document.getElementById("workspace");
+    if (workspace && workspace.scrollHeight > workspace.clientHeight + 1) {
+      return { element: workspace, top: workspace.getBoundingClientRect().top, bottom: workspace.getBoundingClientRect().bottom };
+    }
+    return { element: document.scrollingElement, top: 0, bottom: window.innerHeight };
+  };
+
+  const placeSectionAtPointer = (clientY) => {
+    if (!activeSection || !activeSpacing) return;
+    const siblings = Array.from(container.querySelectorAll(":scope > .resume-section"))
+      .filter((section) => section !== activeSection);
+    const before = siblings.find((section) => {
+      const rect = section.getBoundingClientRect();
+      return clientY < rect.top + rect.height / 2;
+    });
+    if (before) {
+      const beforeSpacing = container.querySelector(`:scope > .spacing-handle[data-section-id="${CSS.escape(before.dataset.sectionId)}"]`);
+      if (!beforeSpacing) return;
+      container.insertBefore(activeSpacing, beforeSpacing);
+      container.insertBefore(activeSection, beforeSpacing);
+    } else {
+      container.appendChild(activeSpacing);
+      container.appendChild(activeSection);
+    }
+  };
+
+  const stopAutoScroll = () => {
+    if (scrollFrame) cancelAnimationFrame(scrollFrame);
+    scrollFrame = 0;
+  };
+
+  const autoScroll = () => {
+    if (!activeSection) return;
+    const { element, top, bottom } = getScrollContext();
+    const threshold = Math.min(80, Math.max(44, (bottom - top) * 0.14));
+    let delta = 0;
+    if (lastPointerY < top + threshold) {
+      delta = -Math.ceil(4 + 18 * (top + threshold - lastPointerY) / threshold);
+    } else if (lastPointerY > bottom - threshold) {
+      delta = Math.ceil(4 + 18 * (lastPointerY - (bottom - threshold)) / threshold);
+    }
+    if (delta) {
+      if (element === document.scrollingElement) window.scrollBy(0, delta);
+      else element.scrollTop += delta;
+      placeSectionAtPointer(lastPointerY);
+    }
+    scrollFrame = requestAnimationFrame(autoScroll);
+  };
+
+  const resetDrag = () => {
+    stopAutoScroll();
+    activeHandle?.classList.remove("dragging");
+    activeSection?.classList.remove("section-reordering");
+    activeHandle = null;
+    activeSection = null;
+    activeSpacing = null;
+    startOrder = [];
+  };
+
+  container.addEventListener("pointerdown", (event) => {
+    const handle = event.target.closest(".section-reorder-handle");
+    if (!handle || event.button !== 0) return;
+    const section = handle.closest(".resume-section");
+    const spacing = container.querySelector(`:scope > .spacing-handle[data-section-id="${CSS.escape(handle.dataset.sectionId)}"]`);
+    if (!section || !spacing) return;
+    event.preventDefault();
+    event.stopPropagation();
+    activeHandle = handle;
+    activeSection = section;
+    activeSpacing = spacing;
+    startOrder = Array.from(container.querySelectorAll(":scope > .resume-section"), (item) => item.dataset.sectionId);
+    lastPointerY = event.clientY;
+    handle.classList.add("dragging");
+    section.classList.add("section-reordering");
+    scrollFrame = requestAnimationFrame(autoScroll);
+  });
+
+  window.addEventListener("pointermove", (event) => {
+    if (!activeSection) return;
+    event.preventDefault();
+    lastPointerY = event.clientY;
+    placeSectionAtPointer(lastPointerY);
+  });
+
+  window.addEventListener("pointerup", () => {
+    if (!activeSection) return;
+    const sectionId = activeSection.dataset.sectionId;
+    const finalOrder = Array.from(container.querySelectorAll(":scope > .resume-section"), (item) => item.dataset.sectionId);
+    const changed = finalOrder.some((id, index) => id !== startOrder[index]);
+    if (changed) {
+      const state = getState();
+      pushUndoState();
+      if (applySectionOrder(state, finalOrder)) {
+        const movedSection = state.sections.find((section) => section.id === sectionId);
+        if (movedSection) movedSection.spacingBefore = Math.max(0, Number(movedSection.spacingBefore) || 0);
+        markDirty();
+      }
+    }
+    resetDrag();
+    if (changed) renderResume(getState());
+    requestAnimationFrame(() => {
+      updateAddGutter(getState());
+      updateA4Status();
+    });
+  });
+
+  window.addEventListener("pointercancel", () => {
+    if (!activeSection) return;
+    resetDrag();
+    renderResume(getState());
+  });
+
+  container.addEventListener("keydown", (event) => {
+    const handle = event.target.closest(".section-reorder-handle");
+    if (!handle || !["ArrowUp", "ArrowDown"].includes(event.key)) return;
+    event.preventDefault();
+    reorderSection(handle.dataset.sectionId, event.key === "ArrowUp" ? -1 : 1);
+  });
 }
 
 /** ========================

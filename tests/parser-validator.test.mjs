@@ -236,3 +236,54 @@ test("JSON Schema v2 支持自定义板块", () => {
   assert.equal(result.state.sections[0].title, "自定义标题");
   assert.equal(result.state.sections[0].blocks[1].bullets[0].content[0].value, "列表内容");
 });
+
+test("实习经历可以按拖动后的 ID 顺序整体重排", () => {
+  const markdown = readFileSync(new URL("fixtures/valid/sample-resume.md", root), "utf8");
+  const result = evaluate(markdown, "sample-resume.md");
+  const section = result.state.sections.find((item) => item.type === "experience");
+  const initialIds = section.entries.map((entry) => entry.id);
+  const initialNames = section.entries.map((entry) => entry.name);
+
+  context.__section = section;
+  context.__order = [initialIds[1], initialIds[0], initialIds[2]];
+  const changed = vm.runInContext("applyEntryOrder(__section, __order)", context);
+
+  assert.equal(changed, true);
+  assert.deepEqual(Array.from(section.entries, (entry) => entry.name), [
+    initialNames[1], initialNames[0], initialNames[2],
+  ]);
+});
+
+test("所有简历大板块可以按拖动后的 ID 全局重排", () => {
+  const markdown = readFileSync(new URL("fixtures/valid/sample-resume.md", root), "utf8");
+  const result = evaluate(markdown, "sample-resume.md");
+  const initialIds = result.state.sections.map((section) => section.id);
+  const initialTitles = result.state.sections.map((section) => section.title);
+
+  context.__state = result.state;
+  context.__sectionOrder = [initialIds[0], initialIds[2], initialIds[1], initialIds[3]];
+  const changed = vm.runInContext("applySectionOrder(__state, __sectionOrder)", context);
+
+  assert.equal(changed, true);
+  assert.deepEqual(Array.from(result.state.sections, (section) => section.title), [
+    initialTitles[0], initialTitles[2], initialTitles[1], initialTitles[3],
+  ]);
+
+  context.__state = result.state;
+  const exportedMarkdown = vm.runInContext("serializeStateToMarkdown(__state)", context);
+  const exportedJson = vm.runInContext("serializeStateToJson(__state)", context);
+  assert.ok(exportedMarkdown.indexOf("## 项目经历") < exportedMarkdown.indexOf("## 实习经历"));
+  assert.ok(exportedJson.indexOf('"type": "projects"') < exportedJson.indexOf('"type": "experience"'));
+});
+
+test("载入旧状态时会清除造成板块重叠的负间距", () => {
+  const state = { sections: [
+    { id: "negative", spacingBefore: -100 },
+    { id: "positive", spacingBefore: 3 },
+  ] };
+  context.__legacyState = state;
+  vm.runInContext("setState(__legacyState)", context);
+
+  assert.equal(state.sections[0].spacingBefore, 0);
+  assert.equal(state.sections[1].spacingBefore, 3);
+});

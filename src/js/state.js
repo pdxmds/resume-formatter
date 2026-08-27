@@ -42,6 +42,28 @@ function getSectionTitle(sectionType) {
   return SECTION_TITLES_MAP[sectionType] || sectionType;
 }
 
+function applyEntryOrder(section, orderedIds) {
+  if (!section || !Array.isArray(section.entries) || !Array.isArray(orderedIds)) return false;
+  if (section.entries.length !== orderedIds.length) return false;
+  const byId = new Map(section.entries.map((entry) => [entry.id, entry]));
+  const reordered = orderedIds.map((id) => byId.get(id));
+  if (reordered.some((entry) => !entry)) return false;
+  const changed = reordered.some((entry, index) => entry !== section.entries[index]);
+  if (changed) section.entries = reordered;
+  return changed;
+}
+
+function applySectionOrder(state, orderedIds) {
+  if (!state || !Array.isArray(state.sections) || !Array.isArray(orderedIds)) return false;
+  if (state.sections.length !== orderedIds.length) return false;
+  const byId = new Map(state.sections.map((section) => [section.id, section]));
+  const reordered = orderedIds.map((id) => byId.get(id));
+  if (reordered.some((section) => !section)) return false;
+  const changed = reordered.some((section, index) => section !== state.sections[index]);
+  if (changed) state.sections = reordered;
+  return changed;
+}
+
 /**
  * Create a default resume state.
  * @returns {object}
@@ -111,6 +133,9 @@ function getState() {
  * @param {object} newState
  */
 function setState(newState) {
+  (newState.sections || []).forEach((section) => {
+    if (Number(section.spacingBefore) < 0) section.spacingBefore = 0;
+  });
   window.__resumeState = newState;
   if (typeof resetUndoHistory === "function") resetUndoHistory();
 }

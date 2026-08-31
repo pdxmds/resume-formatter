@@ -67,18 +67,11 @@ function renderHeader(state) {
   if (contactEl) {
     contactEl.innerHTML = "";
     const portfolio = getPortfolioContact(profile.portfolio);
-    // Static SVGs keep the four icons consistent without external resources.
-    const icons = {
-      phone: '<path d="M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3.1 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.1 4.2 2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1.9.3 1.8.6 2.6a2 2 0 0 1-.5 2.1L8 9.7a16 16 0 0 0 6 6l1.3-1.3a2 2 0 0 1 2.1-.4c.8.3 1.7.5 2.6.6a2 2 0 0 1 2 2.3z"/>',
-      email: '<rect x="3" y="5" width="18" height="14" rx="2"/><path d="m3 7 9 6 9-6"/>',
-      birth: '<rect x="3" y="5" width="18" height="16" rx="2"/><path d="M16 3v4M8 3v4M3 10h18"/>',
-      location: '<path d="M20 10c0 5-8 12-8 12S4 15 4 10a8 8 0 1 1 16 0z"/><circle cx="12" cy="10" r="2.5"/>',
-    };
     const items = [
-      { field: "phone", text: profile.phone, label: "电话" },
-      { field: "email", text: profile.email, label: "邮箱" },
+      { field: "phone", text: profile.phone, label: "联系电话" },
+      { field: "email", text: profile.email, label: "E-mail" },
+      { field: "location", text: profile.location, label: "籍贯" },
       { field: "birth", text: profile.birth, label: "出生年月" },
-      { field: "location", text: profile.location, label: "籍贯 / 所在地" },
       portfolio && { field: "portfolio", text: portfolio.label, href: portfolio.href, label: "作品集" },
     ].filter(Boolean);
 
@@ -88,21 +81,25 @@ function renderHeader(state) {
       item.dataset.contactField = field;
       item.dataset.empty = text ? "false" : "true";
 
-      if (icons[field]) {
-        const icon = document.createElement("span");
-        icon.className = "contact-icon";
-        icon.setAttribute("aria-hidden", "true");
-        icon.innerHTML = `<svg viewBox="0 0 24 24" focusable="false">${icons[field]}</svg>`;
-        item.appendChild(icon);
+      if (field !== "portfolio") {
+        const prefix = document.createElement("span");
+        prefix.className = "contact-label";
+        prefix.setAttribute("aria-hidden", "true");
+        const labelText = document.createElement("span");
+        labelText.className = "contact-label-text";
+        labelText.textContent = label;
+        prefix.appendChild(labelText);
+        prefix.appendChild(document.createTextNode("："));
+        item.appendChild(prefix);
       }
 
-      // Only the text is editable, so editing cannot delete or save an icon.
+      // Edit and save only the value, never the fixed field label.
       const value = document.createElement(href ? "a" : "span");
       value.className = `contact-value editable-placeholder${href ? " contact-link" : ""}`;
       value.textContent = text || "";
       value.dataset.profileField = field;
       value.dataset.empty = text ? "false" : "true";
-      value.dataset.placeholder = label;
+      value.dataset.placeholder = "待填写";
       value.contentEditable = "plaintext-only";
       value.setAttribute("role", "textbox");
       value.setAttribute("aria-label", `编辑${label}`);

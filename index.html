@@ -1831,6 +1831,7 @@ body {
   grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
   align-items: baseline;
   column-gap: 3mm;
+  line-height: var(--layout-line-height);
   margin-bottom: 0.15mm;
 }
 
@@ -1842,11 +1843,6 @@ body {
 
 #resume-page[data-theme] .resume-section[data-section-type="experience"] .resume-entry:last-child {
   margin-bottom: 0;
-}
-
-#resume-page[data-theme] .resume-section[data-section-type="experience"] .entry-header {
-  line-height: 1.25;
-  margin-bottom: 0.05mm;
 }
 
 #resume-page[data-theme] .entry-left { display: contents; }
@@ -1909,21 +1905,13 @@ body {
   font-family: "Resume Latin", "Times New Roman", "HYQiHei", "PingFang SC", "Hiragino Sans GB", sans-serif;
 }
 
-/* Education uses a compact, predictable three-column layout in every theme. */
+/* Education keeps its plain-text lists while sharing the global typography. */
 #resume-page[data-theme] .resume-section[data-section-type="education"] .resume-entry {
   margin-bottom: 0.25mm;
 }
 
 #resume-page[data-theme] .resume-section[data-section-type="education"] .resume-entry:last-child {
   margin-bottom: 0;
-}
-
-#resume-page[data-theme] .resume-section[data-section-type="education"] .entry-header {
-  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
-  align-items: baseline;
-  column-gap: 2mm;
-  margin-bottom: 0.05mm;
-  line-height: 1.22;
 }
 
 #resume-page[data-theme] .resume-section[data-section-type="education"] .entry-name,
@@ -1941,9 +1929,6 @@ body {
 
 #resume-page[data-theme] .resume-section[data-section-type="education"] .entry-bullets .bullet-item {
   padding-left: 0;
-  font-size: 9pt;
-  line-height: 1.28;
-  margin-bottom: 0;
 }
 
 #resume-page[data-theme] .resume-section[data-section-type="education"] .entry-bullets .bullet-item::before {

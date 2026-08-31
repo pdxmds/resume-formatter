@@ -202,8 +202,8 @@ function applyPhotoTransform(photo) {
 function applyPhotoFrameSize(photo) {
   const page = document.getElementById("resume-page");
   if (!page) return;
-  const baseWidth = 20.1;
-  const baseHeight = 24.4;
+  const baseWidth = 26;
+  const baseHeight = 35;
   const frameScale = Math.max(0.4, Math.min(2, Number(photo && photo.frameScale) || 1));
   page.style.setProperty("--photo-w", `${(baseWidth * frameScale).toFixed(2)}mm`);
   page.style.setProperty("--photo-h", `${(baseHeight * frameScale).toFixed(2)}mm`);

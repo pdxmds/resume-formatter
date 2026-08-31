@@ -290,6 +290,7 @@
    STYLE A
    ======================== */
 #resume-page[data-theme="a"] {
+  --divider-width: 1.5px;
   --page-padding-top: 7mm; --page-padding-bottom: 5mm;
   --page-padding-left: 10mm; --page-padding-right: 10mm;
   --section-gap: 1.5mm; --entry-gap: 1mm; --bullet-gap: 0.2mm;
@@ -355,7 +356,7 @@
 #resume-page[data-theme="a"] .section-title {
   font-size: var(--font-size-section-title); font-weight: 700; color: var(--color-text);
   margin: 0 0 1mm; padding-bottom: 0.8mm; background: none; border-radius: 0;
-  border-bottom: 1.5px solid var(--color-divider); display: block; letter-spacing: 0;
+  border-bottom: var(--divider-width) solid var(--color-divider); display: block; letter-spacing: 0;
 }
 #resume-page[data-theme="a"] .section-divider { display: none; }
 #resume-page[data-theme="a"] .entry-header {
@@ -381,6 +382,7 @@
    STYLE B
    ======================== */
 #resume-page[data-theme="b"] {
+  --divider-width: 1px;
   --page-padding-top: 6mm; --page-padding-bottom: 4mm;
   --page-padding-left: 12mm; --page-padding-right: 12mm;
   --section-gap: 0.8mm; --entry-gap: 0.5mm; --bullet-gap: 0.1mm;
@@ -436,7 +438,7 @@
 #resume-page[data-theme="b"] .section-title {
   font-size: 11pt; font-weight: 900; font-synthesis: weight; color: var(--color-text);
   margin: 0 0 1.5mm; padding-bottom: 1mm; background: none; border-radius: 0;
-  border-bottom: 1px solid var(--color-divider); display: block; letter-spacing: 1px;
+  border-bottom: var(--divider-width) solid var(--color-divider); display: block; letter-spacing: 1px;
   font-family: "Resume Latin", "Times New Roman", "Microsoft YaHei", "微软雅黑", "SimHei", "黑体", sans-serif;
 }
 #resume-page[data-theme="b"] .section-divider { display: none; }
@@ -468,6 +470,7 @@
    STYLE C — 思源宋体
    ======================== */
 #resume-page[data-theme="c"] {
+  --divider-width: 1px;
   --page-padding-top: 6mm; --page-padding-bottom: 4mm;
   --page-padding-left: 12mm; --page-padding-right: 12mm;
   --section-gap: 0.8mm; --entry-gap: 0.5mm; --bullet-gap: 0.1mm;
@@ -524,7 +527,7 @@
 #resume-page[data-theme="c"] .section-title {
   font-size: 11pt; font-weight: 900; font-synthesis: weight; color: var(--color-text);
   margin: 0 0 1.5mm; padding-bottom: 1mm; background: none; border-radius: 0;
-  border-bottom: 1px solid var(--color-divider); display: block; letter-spacing: 1px;
+  border-bottom: var(--divider-width) solid var(--color-divider); display: block; letter-spacing: 1px;
   font-family: "Resume Latin", "Times New Roman", "Source Han Sans VF", "思源黑体 VF", "PingFang SC", "Microsoft YaHei", sans-serif;
 }
 #resume-page[data-theme="c"] .section-divider { display: none; }
@@ -557,6 +560,7 @@
    复刻 CV-Ai产品.pdf：楷体姓名、蓝色信息层级、宋体正文、三列条目头
    ======================== */
 #resume-page[data-theme="d"] {
+  --divider-width: 1.2px;
   --page-padding-top: 7mm; --page-padding-bottom: 6mm;
   --page-padding-left: 15mm; --page-padding-right: 15mm;
   --section-gap: 0.6mm; --entry-gap: 0.35mm; --bullet-gap: 0.05mm;
@@ -618,7 +622,7 @@
 #resume-page[data-theme="d"] .section-title {
   font-size: var(--font-size-section-title); font-weight: 700; color: var(--color-academic);
   margin: 0 0 0.45mm; padding: 0 0 0.25mm; background: none; border-radius: 0;
-  border-bottom: 1.2px solid var(--color-divider); display: block; letter-spacing: 0;
+  border-bottom: var(--divider-width) solid var(--color-divider); display: block; letter-spacing: 0;
   font-family: "Resume Latin", "Times New Roman", "HYZhongHeiKW", "Hiragino Sans GB", "PingFang SC", sans-serif;
 }
 #resume-page[data-theme="d"] .section-divider { display: none; }
@@ -701,8 +705,10 @@
   --font-size-contact: 10.5pt;
   --font-size-headline: 13pt;
   --layout-line-height: 1.57;
-  --photo-w: 20.1mm;
-  --photo-h: 24.4mm;
+  --photo-w: 26mm;
+  --photo-h: 35mm;
+  /* Reserve the maximum (200%) frame width so resizing cannot reflow contacts. */
+  --photo-slot-w: 52mm;
   --photo-frame-offset-x: 0mm;
   --photo-frame-offset-y: 0mm;
 }
@@ -716,7 +722,7 @@
 #resume-page[data-theme] #resume-header {
   position: relative;
   display: grid;
-  grid-template-columns: minmax(0, 1fr) var(--photo-w);
+  grid-template-columns: minmax(0, 1fr) var(--photo-slot-w);
   column-gap: 6mm;
   align-items: start;
   min-height: calc(var(--photo-h) + max(0mm, var(--photo-frame-offset-y)));
@@ -741,7 +747,7 @@
   font-weight: 400;
   margin: 0 0 1.5mm;
   padding: 0 0 1mm;
-  border-bottom: 0.75mm solid #0070c0;
+  border-bottom: var(--divider-width) solid var(--color-divider);
   letter-spacing: 2mm;
   line-height: 1.2;
   text-align: left;

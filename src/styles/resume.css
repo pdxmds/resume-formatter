@@ -716,53 +716,113 @@
 #resume-page[data-theme] #resume-header {
   position: relative;
   display: grid;
-  grid-template-columns: var(--photo-w) minmax(0, 1fr) var(--photo-w);
-  align-items: flex-start;
-  min-height: 21mm;
-  margin-bottom: 0.8mm;
-  padding-bottom: 0;
+  grid-template-columns: minmax(0, 1fr) var(--photo-w);
+  column-gap: 6mm;
+  align-items: center;
+  min-height: calc(var(--photo-h) + max(0mm, var(--photo-frame-offset-y)));
+  margin-bottom: 2mm;
+  padding: 0;
   border-bottom: none;
 }
 
 #resume-page[data-theme] #header-info {
-  grid-column: 2;
+  grid-column: 1;
   min-width: 0;
-  display: flex;
-  flex-direction: column;
+  min-height: var(--photo-h);
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) fit-content(35%);
+  column-gap: 6mm;
   align-items: center;
-  text-align: center;
-  padding: 5mm 0 0;
+  text-align: left;
+  padding: 2mm 0;
 }
 
 #resume-page[data-theme] #profile-name {
+  grid-column: 2;
+  grid-row: 1;
   display: block;
-  font-size: var(--font-size-name);
-  margin: 0 0 0.8mm;
-  letter-spacing: 2px;
+  min-width: 0;
+  font-size: 24pt;
+  font-weight: 700;
+  margin: 0;
+  letter-spacing: 1mm;
   line-height: 1.12;
+  text-align: center;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  color: #111;
 }
 
 #resume-page[data-theme] #profile-headline { display: none; }
 
 #resume-page[data-theme] #contact-info {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: center;
-  gap: 0;
+  grid-column: 1;
+  grid-row: 1;
+  min-width: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 0.85fr) minmax(0, 1.15fr);
+  gap: 2.5mm 4mm;
+  align-items: center;
+  justify-content: start;
   margin: 0;
-  font-size: var(--font-size-contact);
+  font-size: 10pt;
+  line-height: 1.25;
+  color: #111;
 }
 
-#resume-page[data-theme] .contact-item + .contact-item::before { content: " | "; }
+#resume-page[data-theme] .contact-item {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  gap: 1.5mm;
+  white-space: normal;
+}
+
+/* Keep each field in its own slot, including when optional values are empty. */
+#resume-page[data-theme] [data-contact-field="phone"] { grid-area: 1 / 1; }
+#resume-page[data-theme] [data-contact-field="email"] { grid-area: 1 / 2; }
+#resume-page[data-theme] [data-contact-field="birth"] { grid-area: 2 / 1; }
+#resume-page[data-theme] [data-contact-field="location"] { grid-area: 2 / 2; }
+#resume-page[data-theme] [data-contact-field="portfolio"] { grid-area: 3 / 1 / auto / -1; }
+
+#resume-page[data-theme] .contact-item + .contact-item::before,
+#resume-page[data-theme] .contact-link::before { content: none; }
+
+#resume-page[data-theme] .contact-icon {
+  display: inline-flex;
+  width: 3.5mm;
+  height: 3.5mm;
+  flex: 0 0 3.5mm;
+  color: #222;
+}
+
+#resume-page[data-theme] .contact-icon svg {
+  width: 100%;
+  height: 100%;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+#resume-page[data-theme] .contact-value {
+  display: inline-block;
+  min-width: 0;
+  max-width: 100%;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  text-align: left;
+}
 
 #resume-page[data-theme] #photo-container {
   position: absolute;
   right: calc(0mm - var(--photo-frame-offset-x));
-  grid-column: 3;
+  grid-column: 2;
   justify-self: end;
   width: var(--photo-w);
   height: var(--photo-h);
-  top: calc(3mm + var(--photo-frame-offset-y));
+  top: var(--photo-frame-offset-y);
   transform: none;
 }
 

@@ -41,7 +41,7 @@ function getPortfolioContact(value) {
 }
 
 /**
- * Render header — behaviour differs by theme.
+ * Render the shared contact grid, name and existing editable photo frame.
  * @param {object} state
  */
 function renderHeader(state) {
@@ -67,29 +67,51 @@ function renderHeader(state) {
   if (contactEl) {
     contactEl.innerHTML = "";
     const portfolio = getPortfolioContact(profile.portfolio);
+    // Static SVGs keep the four icons consistent without external resources.
+    const icons = {
+      phone: '<path d="M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3.1 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.1 4.2 2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1.9.3 1.8.6 2.6a2 2 0 0 1-.5 2.1L8 9.7a16 16 0 0 0 6 6l1.3-1.3a2 2 0 0 1 2.1-.4c.8.3 1.7.5 2.6.6a2 2 0 0 1 2 2.3z"/>',
+      email: '<rect x="3" y="5" width="18" height="14" rx="2"/><path d="m3 7 9 6 9-6"/>',
+      birth: '<rect x="3" y="5" width="18" height="16" rx="2"/><path d="M16 3v4M8 3v4M3 10h18"/>',
+      location: '<path d="M20 10c0 5-8 12-8 12S4 15 4 10a8 8 0 1 1 16 0z"/><circle cx="12" cy="10" r="2.5"/>',
+    };
     const items = [
-      profile.phone && {
-        field: "phone",
-        text: profile.phone,
-      },
-      profile.email && {
-        field: "email",
-        text: profile.email,
-      },
-      portfolio && { field: "portfolio", text: portfolio.label, href: portfolio.href },
+      { field: "phone", text: profile.phone, label: "电话" },
+      { field: "email", text: profile.email, label: "邮箱" },
+      { field: "birth", text: profile.birth, label: "出生年月" },
+      { field: "location", text: profile.location, label: "籍贯 / 所在地" },
+      portfolio && { field: "portfolio", text: portfolio.label, href: portfolio.href, label: "作品集" },
     ].filter(Boolean);
 
-    items.forEach(({ field, text, href }) => {
-      const item = document.createElement(href ? "a" : "span");
-      item.className = `contact-item${href ? " contact-link" : ""}`;
-      item.textContent = text;
-      item.dataset.profileField = field;
-      item.contentEditable = "plaintext-only";
-      if (href) {
-        item.href = href;
-        item.target = "_blank";
-        item.rel = "noopener noreferrer";
+    items.forEach(({ field, text, href, label }) => {
+      const item = document.createElement("div");
+      item.className = "contact-item";
+      item.dataset.contactField = field;
+      item.dataset.empty = text ? "false" : "true";
+
+      if (icons[field]) {
+        const icon = document.createElement("span");
+        icon.className = "contact-icon";
+        icon.setAttribute("aria-hidden", "true");
+        icon.innerHTML = `<svg viewBox="0 0 24 24" focusable="false">${icons[field]}</svg>`;
+        item.appendChild(icon);
       }
+
+      // Only the text is editable, so editing cannot delete or save an icon.
+      const value = document.createElement(href ? "a" : "span");
+      value.className = `contact-value editable-placeholder${href ? " contact-link" : ""}`;
+      value.textContent = text || "";
+      value.dataset.profileField = field;
+      value.dataset.empty = text ? "false" : "true";
+      value.dataset.placeholder = label;
+      value.contentEditable = "plaintext-only";
+      value.setAttribute("role", "textbox");
+      value.setAttribute("aria-label", `编辑${label}`);
+      if (href) {
+        value.href = href;
+        value.target = "_blank";
+        value.rel = "noopener noreferrer";
+      }
+      item.appendChild(value);
       contactEl.appendChild(item);
     });
   }

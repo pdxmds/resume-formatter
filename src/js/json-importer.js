@@ -62,6 +62,7 @@ const JSON_EXAMPLE = `{
     "location": "北京",
     "phone": "1xx-xxxx-xxxx",
     "email": "example@example.com",
+    "birth": "2001/08",
     "website": "",
     "portfolio": "",
     "github": ""
@@ -138,6 +139,7 @@ headline: 用户增长产品经理｜虚构演示数据
 location: 北京
 phone: 1xx-xxxx-xxxx
 email: example@example.com
+birth: 2001/08
 website:
 portfolio:
 github:
@@ -235,6 +237,7 @@ const PROMPT_PDF_TO_MD = `请完整读取我上传的 PDF 简历，并将其转�
 - location：当前城市或求职城市。
 - phone：联系电话。
 - email：邮箱。
+- birth：出生年月，按原文保留；未提供时留空，不推算年龄或出生日期。
 - website、portfolio、github：原文存在时填写，不存在时留空。
 - "###"后填写学校、公司或项目名称。
 - role 填写学历专业、岗位名称或项目角色。
@@ -252,6 +255,7 @@ headline: 求职方向
 location: 城市
 phone: 电话
 email: 邮箱
+birth:
 website:
 portfolio:
 github:
@@ -336,6 +340,7 @@ headline: 求职方向
 location: 城市
 phone: 电话
 email: 邮箱
+birth:
 website:
 portfolio:
 github:
@@ -418,6 +423,7 @@ const PROMPT_PDF_TO_JSON = `请完整读取我上传的 PDF 简历，并将其�
     "location": "",
     "phone": "",
     "email": "",
+    "birth": "",
     "website": "",
     "portfolio": "",
     "github": ""
@@ -514,6 +520,7 @@ JSON 结构严格使用 Resume Formatter Schema v2：
     "location": "",
     "phone": "",
     "email": "",
+    "birth": "",
     "website": "",
     "portfolio": "",
     "github": ""
@@ -602,7 +609,7 @@ ${errorList}`;
 4. schemaVersion 必须为 2。
 5. sections 可以使用预置类型，也可以使用带 title 和 blocks 的 custom 类型。
 6. bullets 必须是字符串数组，可以包含 **加粗** 标记。
-7. profile 必须包含 name、headline、phone、email。`;
+7. profile 必须包含 name、phone、email；headline、birth 和 location 为选填字段。`;
 
   return prompt;
 }
@@ -683,7 +690,7 @@ function importJsonResume(rawJson, fileName) {
       suggestion: "请添加 \"profile\": { ... }。",
     });
   } else {
-    const requiredProfileFields = ["name", "headline", "phone", "email"];
+    const requiredProfileFields = ["name", "phone", "email"];
     for (const field of requiredProfileFields) {
       if (!data.profile[field] || typeof data.profile[field] !== "string") {
         errors.push({
@@ -694,6 +701,20 @@ function importJsonResume(rawJson, fileName) {
           suggestion: `请添加 \"${field}\": \"值\"。`,
         });
       }
+    }
+  }
+
+  // Optional header fields must remain editable text when supplied.
+  for (const field of ["birth", "headline"]) {
+    const value = data.profile && data.profile[field];
+    if (value != null && typeof value !== "string") {
+      errors.push({
+        level: "error",
+        code: "INVALID_PROFILE_FIELD",
+        field: "profile." + field,
+        message: `profile.${field} 必须为字符串。`,
+        suggestion: `请使用双引号包裹 ${field}，或省略该选填字段。`,
+      });
     }
   }
 
@@ -956,6 +977,7 @@ function buildStateFromJson(data, fileName) {
   state.profile.location = profile.location || "";
   state.profile.phone = profile.phone || "";
   state.profile.email = profile.email || "";
+  state.profile.birth = profile.birth || "";
   state.profile.website = profile.website || "";
   state.profile.portfolio = profile.portfolio || "";
   state.profile.github = profile.github || "";

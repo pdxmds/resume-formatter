@@ -1406,9 +1406,12 @@ function syncElementToState(el) {
       state.profile.portfolio = raw && current && current.href
         ? `${raw} | ${current.href}`
         : raw;
-    } else if (field in state.profile) {
+    } else if (field === "birth" || field in state.profile) {
       state.profile[field] = raw;
     }
+    el.dataset.empty = raw ? "false" : "true";
+    const contactItem = el.closest("[data-contact-field]");
+    if (contactItem) contactItem.dataset.empty = el.dataset.empty;
     return;
   }
 

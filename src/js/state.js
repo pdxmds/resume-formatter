@@ -85,6 +85,7 @@ function createDefaultState() {
       location: "",
       phone: "",
       email: "",
+      birth: "",
       website: "",
       portfolio: "",
       github: "",
@@ -133,6 +134,8 @@ function getState() {
  * @param {object} newState
  */
 function setState(newState) {
+  // Older embedded HTML and local drafts predate the optional birth field.
+  if (newState.profile && newState.profile.birth == null) newState.profile.birth = "";
   (newState.sections || []).forEach((section) => {
     if (Number(section.spacingBefore) < 0) section.spacingBefore = 0;
   });

@@ -72,13 +72,17 @@
     display: none !important;
   }
 
+  #resume-page[data-theme] .contact-item[data-empty="true"] {
+    visibility: hidden;
+  }
+
   #resume-page[data-theme] #photo-container[data-empty="true"] {
     border: 0 !important;
   }
 
   #resume-page[data-theme] #photo-container {
     right: calc(0mm - var(--photo-frame-offset-x)) !important;
-    top: calc(3mm + var(--photo-frame-offset-y)) !important;
+    top: var(--photo-frame-offset-y) !important;
     transform: none !important;
   }
 

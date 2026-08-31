@@ -224,9 +224,11 @@ function handleNewResume() {
 schema_version: 1
 resume_name: 公司名-岗位
 name: 姓名
-headline: 求职方向
+headline:
 phone: 手机号
 email: 邮箱
+birth:
+location:
 ---
 
 ## 教育经历

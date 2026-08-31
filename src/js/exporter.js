@@ -18,6 +18,7 @@ function serializeStateToMarkdown(state) {
     ["location", state.profile.location],
     ["phone", state.profile.phone],
     ["email", state.profile.email],
+    ["birth", state.profile.birth],
     ["website", state.profile.website],
     ["portfolio", state.profile.portfolio],
     ["github", state.profile.github],
@@ -103,6 +104,7 @@ function serializeStateToJson(state) {
       location: state.profile.location || "",
       phone: state.profile.phone || "",
       email: state.profile.email || "",
+      birth: state.profile.birth || "",
       website: state.profile.website || "",
       portfolio: state.profile.portfolio || "",
       github: state.profile.github || "",
@@ -289,7 +291,9 @@ function preparePortfolioLinkForPrint() {
     current.replaceWith(link);
   }
 
-  link.className = "contact-item contact-link";
+  link.className = current.classList.contains("contact-value")
+    ? "contact-value contact-link"
+    : "contact-item contact-link";
   link.setAttribute("href", portfolio.href);
   link.setAttribute("target", "_blank");
   link.setAttribute("rel", "noopener noreferrer");

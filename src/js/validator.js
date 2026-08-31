@@ -16,6 +16,7 @@ const REQUIRED_FRONTMATTER_FIELDS = [
 const OPTIONAL_FRONTMATTER_FIELDS = [
   "headline",
   "location",
+  "birth",
   "website",
   "portfolio",
   "github",
@@ -231,6 +232,7 @@ function buildState(frontmatter, sections, fileName) {
   state.profile.location = frontmatter.location || "";
   state.profile.phone = frontmatter.phone || "";
   state.profile.email = frontmatter.email || "";
+  state.profile.birth = frontmatter.birth || "";
   state.profile.website = frontmatter.website || "";
   state.profile.portfolio = frontmatter.portfolio || "";
   state.profile.github = frontmatter.github || "";

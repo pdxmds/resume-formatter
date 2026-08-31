@@ -6,6 +6,7 @@ headline: 用户增长产品经理｜虚构演示数据
 location: 北京
 phone: 1xx-xxxx-xxxx
 email: example@example.com
+birth: 2001/08
 ---
 
 ## 教育经历

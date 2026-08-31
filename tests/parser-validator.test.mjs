@@ -287,3 +287,68 @@ test("载入旧状态时会清除造成板块重叠的负间距", () => {
   assert.equal(state.sections[0].spacingBefore, 0);
   assert.equal(state.sections[1].spacingBefore, 3);
 });
+
+test("出生年月在 Markdown v1/v2、编辑及 Markdown/JSON 往返中保留", () => {
+  for (const schemaVersion of [1, 2]) {
+    const initial = evaluate(`---
+schema_version: ${schemaVersion}
+resume_name: 顶部布局测试（虚构）
+name: 示例用户
+phone: 1xx-xxxx-xxxx
+email: example@example.com
+birth: 2001/08
+location: 海州市
+---
+`);
+    assert.ok(initial.state);
+    assert.equal(initial.state.profile.birth, "2001/08");
+    assert.equal(initial.state.profile.headline, "");
+    // Model the edit before saving, instead of only testing the import value.
+    initial.state.profile.birth = "2000.09";
+    context.__state = initial.state;
+    const markdown = vm.runInContext("serializeStateToMarkdown(__state)", context);
+    const roundTrip = evaluate(markdown);
+    assert.equal(roundTrip.state.profile.birth, "2000.09");
+    assert.equal(roundTrip.state.profile.location, "海州市");
+
+    context.__json = vm.runInContext("serializeStateToJson(__state)", context);
+    const jsonRoundTrip = vm.runInContext("importJsonResume(__json, 'header.json')", context);
+    assert.ok(jsonRoundTrip.state, JSON.stringify(jsonRoundTrip.errors));
+    assert.equal(jsonRoundTrip.state.profile.birth, "2000.09");
+    assert.equal(jsonRoundTrip.state.profile.headline, "");
+  }
+});
+
+test("旧文件省略出生年月和求职方向时仍可导入及保存", () => {
+  context.__json = JSON.stringify({
+    schemaVersion: 1,
+    resumeName: "旧版测试（虚构）",
+    profile: { name: "示例用户", phone: "1xx-xxxx-xxxx", email: "example@example.com" },
+    sections: [],
+  });
+  const imported = vm.runInContext("importJsonResume(__json, 'legacy.json')", context);
+  assert.ok(imported.state);
+  assert.equal(imported.state.profile.birth, "");
+  context.__state = imported.state;
+  const markdown = vm.runInContext("serializeStateToMarkdown(__state)", context);
+  assert.doesNotMatch(markdown, /birth:|undefined/);
+  assert.equal(evaluate(markdown).state.profile.birth, "");
+
+  delete imported.state.profile.birth;
+  vm.runInContext("setState(__state)", context);
+  assert.equal(imported.state.profile.birth, "");
+});
+
+test("JSON 拒绝非文本出生年月，避免渲染出对象或数组", () => {
+  for (const birth of [2001, {}, []]) {
+    context.__json = JSON.stringify({
+      schemaVersion: 2,
+      resumeName: "字段类型测试（虚构）",
+      profile: { name: "示例用户", phone: "1xx-xxxx-xxxx", email: "example@example.com", birth },
+      sections: [],
+    });
+    const result = vm.runInContext("importJsonResume(__json, 'invalid-birth.json')", context);
+    assert.equal(result.state, null);
+    assert.ok(result.errors.some((error) => error.field === "profile.birth"));
+  }
+});

@@ -18,6 +18,7 @@ function isDirty() { return _dirty; }
 
 function markDirty() {
   _dirty = true;
+  scheduleDraftSave();
   const btn = document.getElementById("btn-save");
   if (btn) btn.classList.add("toolbar-btn-dirty");
 }

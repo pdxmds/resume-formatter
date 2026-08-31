@@ -807,6 +807,7 @@ body {
 }
 
 .dialog-message {
+  white-space: pre-line;
   font-size: 13px;
   color: var(--text-secondary);
   margin: 0 0 20px;
@@ -815,6 +816,7 @@ body {
 
 .dialog-actions {
   display: flex;
+  flex-wrap: wrap;
   justify-content: flex-end;
   gap: 8px;
 }

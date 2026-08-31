@@ -174,6 +174,7 @@ function cloneDocumentForExport(state) {
   // Generate new documentId for exported copy
   const exportState = deepClone(state);
   exportState.documentId = generateId();
+  exportState.layout.theme = getTheme();
   exportState.metadata.lastSavedAt = new Date().toISOString();
 
   // Inject state into clone

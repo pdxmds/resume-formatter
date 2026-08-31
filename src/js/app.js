@@ -3,14 +3,11 @@
  * Initializes state, wires up toolbar buttons, manages import/export lifecycle.
  */
 
-/** @type {string} */
-const APP_STATE_KEY = "resume-formatter:app-state-v1";
-
 document.addEventListener("DOMContentLoaded", () => {
   const initialState = loadInitialState();
-  setState(initialState);
+  setState(initialState || createDefaultState());
 
-  if (initialState.sections && initialState.sections.length > 0) {
+  if (initialState) {
     renderResume(initialState);
   } else if (typeof DEFAULT_RESUME_MD !== "undefined") {
     // Auto-load the baked-in sample resume on first open
@@ -21,7 +18,7 @@ document.addEventListener("DOMContentLoaded", () => {
       renderResume(validation.state);
     }
   } else {
-    updateStatusInfo(initialState);
+    updateStatusInfo(getState());
   }
 
   applyLayoutState(getState());
@@ -34,6 +31,7 @@ document.addEventListener("DOMContentLoaded", () => {
   wireToolbar();
   initThemeSwitcher();
   initToolbarMenus();
+  initPersistence();
   initResumeListPanel();
   initJsonImport();
   initMarkdownPaste();
@@ -131,7 +129,21 @@ function wireToolbar() {
  * @param {File} file
  * @param {HTMLInputElement} fileInput
  */
+function activateImportedResume(state) {
+  setState(state);
+  _activeFile = null;
+  renderResume(state);
+  updateA4Status();
+  clearDirty();
+  persistCurrentSession();
+  renderResumeFileList(_directoryFiles, _directoryName, _directoryCanRefresh);
+}
+
 function handleImport(file, fileInput) {
+  _proceedWithDirtyCheck(() => readMarkdownFile(file, fileInput));
+}
+
+function readMarkdownFile(file, fileInput) {
   const reader = new FileReader();
 
   reader.onload = async (e) => {
@@ -142,10 +154,7 @@ function handleImport(file, fileInput) {
     if (validation.state) {
       // Import successful
       await hydrateReferencedPhoto(validation.state, { file });
-      setState(validation.state);
-      renderResume(validation.state);
-      updateA4Status();
-      clearDirty();
+      activateImportedResume(validation.state);
     } else {
       // Import had errors
       const errorMsgs = validation.errors
@@ -214,6 +223,19 @@ function applyLayoutState(state) {
   if (fontOutput) fontOutput.textContent = `${fontSize}pt`;
   if (lineSlider) lineSlider.value = String(lineHeight);
   if (lineOutput) lineOutput.textContent = lineHeight.toFixed(2);
+}
+
+function applyThemeState(state) {
+  const theme = ["a", "b", "c", "d"].includes(state.layout?.theme) ? state.layout.theme : getTheme();
+  if (!state.layout) state.layout = {};
+  state.layout.theme = theme;
+  const page = document.getElementById("resume-page");
+  if (page) page.dataset.theme = theme;
+  const label = document.getElementById("current-theme-label");
+  if (label) label.textContent = { a: "黑体", b: "宋体", c: "思源", d: "学术" }[theme];
+  for (const value of ["a", "b", "c", "d"]) {
+    document.getElementById(`btn-theme-${value}`)?.classList.toggle("toolbar-btn-active", value === theme);
+  }
 }
 
 /**
@@ -285,25 +307,23 @@ function handleSave() {
     sourceFile && sourceFile.parentDirectory && sourceFile.handle
     && typeof sourceFile.handle.createWritable === "function"
   );
-  const currentName = sourceFile?.name || state.source?.fileName || "当前未关联源文件";
-  const overwriteMessage = canOverwrite
-    ? `当前文件：${currentName}\n请选择新建副本，或将修改写回当前源文件。`
-    : `当前文件：${currentName}\n当前版本没有可写的源文件，只能新建副本。`;
-
+  const currentCopy = loadMarkdownSnapshots().find((copy) => `snapshot:${copy.id}` === _activeFile);
+  const buttons = [
+    { text: "取消" },
+    { text: "下载完整 HTML", action: () => exportAsHtml(getState()) },
+    { text: "新建副本", action: () => promptSaveCopy(getState()) },
+  ];
+  if (canOverwrite) buttons.push({ text: "覆盖源文件", action: () => confirmOverwriteSource(sourceFile) });
+  buttons.push({
+    text: currentCopy ? "保存当前副本" : "保存到浏览器",
+    primary: true,
+    action: () => currentCopy ? saveCurrentCopy(currentCopy.id) : promptSaveCopy(getState()),
+  });
   showDialog({
     title: "保存简历",
-    message: overwriteMessage,
-    buttons: [
-      { text: "取消" },
-      { text: "新建副本", action: () => promptSaveCopy(state) },
-      {
-        text: "覆盖源文件",
-        primary: canOverwrite,
-        disabled: !canOverwrite,
-        title: canOverwrite ? `覆盖 ${currentName}` : "当前版本没有可写的源文件",
-        action: () => confirmOverwriteSource(sourceFile),
-      },
-    ],
+    message: "浏览器副本会完整保留文字、照片和排版；下次用同一浏览器打开此网址可继续编辑。\n建议同时下载完整 HTML 作为长期备份，双击即可打开。"
+      + (canOverwrite ? "\n覆盖源文件只写入 Markdown / JSON 内容，不保存照片裁切和排版。" : "\n当前未授权源文件写入，不影响保存副本或下载备份。"),
+    buttons,
   });
 }
 
@@ -480,7 +500,6 @@ let _directoryCanRefresh = false;
 let _directoryImportSequence = 0;
 let _directoryStatusTimer = null;
 
-const MD_SNAPSHOTS_KEY = "resume-formatter:md-snapshots-v1";
 const PINNED_RESUMES_KEY = "resume-formatter:pinned-resumes-v1";
 
 function loadPinnedResumes() {
@@ -535,17 +554,16 @@ function promptSaveCopy(state) {
   const defaultName = `${sourceBaseName || state.resumeName || "resume"}-副本`;
   showInputDialog({
     title: "新建副本",
-    message: "输入副本名称。副本将以 Markdown 格式保存在右侧版本列表中。",
+    message: "副本完整保留文字、照片、风格、字号和间距，保存在当前浏览器的右侧版本列表中。",
     defaultValue: defaultName,
     confirmText: "创建副本",
     onSubmit: (name) => {
       try {
         const snapshot = saveMarkdownSnapshot(state, name);
-        clearDirty();
         showToast(`已新建副本“${snapshot.name}”。`, "success");
       } catch (e) {
         console.error("Failed to save resume copy:", e);
-        showToast("新建副本失败，请重试。", "error");
+        showLocalSaveFailure();
       }
     },
   });
@@ -610,48 +628,88 @@ async function overwriteSourceFile(file) {
   }
 }
 
-function loadMarkdownSnapshots() {
+function loadMarkdownSnapshots(strict = false) {
   try {
     const parsed = JSON.parse(localStorage.getItem(MD_SNAPSHOTS_KEY) || "[]");
-    return Array.isArray(parsed) ? parsed : [];
+    if (!Array.isArray(parsed)) throw new Error("Invalid saved copy list");
+    return parsed;
   } catch (e) {
     console.error("Failed to load Markdown snapshots:", e);
+    if (strict) throw e;
     return [];
   }
 }
 
+/** Keep this storage key/function compatible with old installations. New copies store full state. */
 function saveMarkdownSnapshot(state, customName) {
-  const now = new Date();
-  const timestamp = [
-    now.getFullYear(),
-    String(now.getMonth() + 1).padStart(2, "0"),
-    String(now.getDate()).padStart(2, "0"),
-    "-",
-    String(now.getHours()).padStart(2, "0"),
-    String(now.getMinutes()).padStart(2, "0"),
-    String(now.getSeconds()).padStart(2, "0"),
-  ].join("");
-  const baseName = sanitizeFileName(
-    customName || state.resumeName || (state.source.fileName || "").replace(/\.(?:md|markdown|json)$/i, "") || "resume"
-  ).replace(/\.(?:md|markdown|json)$/i, "");
-  const snapshot = {
-    id: generateId(),
-    name: `${baseName}${customName ? "" : `-${timestamp}`}.md`,
-    markdown: serializeStateToMarkdown(state),
-    createdAt: now.toISOString(),
-  };
-  const snapshots = loadMarkdownSnapshots();
+  const now = new Date().toISOString();
+  const name = sanitizeFileName(customName || state.resumeName || "简历副本").replace(/\.(?:md|markdown|json|html)$/i, "");
+  const savedState = deepClone(state);
+  savedState.layout.theme = getTheme();
+  savedState.documentId = generateId();
+  savedState.metadata.lastSavedAt = now;
+  const snapshot = { id: generateId(), name, state: savedState, createdAt: now, updatedAt: now };
+  const snapshots = loadMarkdownSnapshots(true);
   snapshots.unshift(snapshot);
+  // Commit storage first; quota failures must not change the current document or report success.
   localStorage.setItem(MD_SNAPSHOTS_KEY, JSON.stringify(snapshots));
+  state.documentId = savedState.documentId;
+  state.metadata.lastSavedAt = now;
   _activeFile = `snapshot:${snapshot.id}`;
+  clearDirty();
+  persistCurrentSession();
   renderResumeFileList(_directoryFiles, _directoryName, _directoryCanRefresh);
   return snapshot;
+}
+
+function saveCurrentCopy(snapshotId) {
+  syncFocusedEditor();
+  try {
+    const snapshots = loadMarkdownSnapshots(true);
+    const copy = snapshots.find((item) => item.id === snapshotId);
+    if (!copy) throw new Error("Saved copy no longer exists");
+    const state = deepClone(getState());
+    state.layout.theme = getTheme();
+    state.metadata.lastSavedAt = new Date().toISOString();
+    copy.state = state;
+    copy.updatedAt = state.metadata.lastSavedAt;
+    delete copy.markdown;
+    localStorage.setItem(MD_SNAPSHOTS_KEY, JSON.stringify(snapshots));
+    getState().metadata.lastSavedAt = state.metadata.lastSavedAt;
+    clearDirty();
+    persistCurrentSession();
+    renderResumeFileList(_directoryFiles, _directoryName, _directoryCanRefresh);
+    showToast(`已保存“${copy.name}”（含照片和排版）。`, "success");
+  } catch (error) {
+    console.warn("Local copy save failed:", error);
+    showLocalSaveFailure();
+  }
+}
+
+async function loadSavedCopy(snapshotId) {
+  if (!await confirmResumeSwitch()) return;
+  try {
+    const copy = loadMarkdownSnapshots().find((item) => item.id === snapshotId);
+    const state = copy && stateFromSavedCopy(copy);
+    if (!state) throw new Error("副本不存在或内容无法读取");
+    setState(state);
+    _activeFile = `snapshot:${snapshotId}`;
+    renderResume(state);
+    updateA4Status();
+    clearDirty();
+    persistCurrentSession();
+    renderResumeFileList(_directoryFiles, _directoryName, _directoryCanRefresh);
+    if (!copy.state) showToast("已打开旧版文字副本。旧版未保存的照片和排版需要重新设置；再次保存会使用完整格式。", "warning");
+  } catch (error) {
+    showDialog({ title: "副本打开失败", message: error.message, buttons: [{ text: "返回", primary: true }] });
+  }
 }
 
 function deleteMarkdownSnapshot(snapshotId) {
   const snapshots = loadMarkdownSnapshots().filter((snapshot) => snapshot.id !== snapshotId);
   localStorage.setItem(MD_SNAPSHOTS_KEY, JSON.stringify(snapshots));
   if (_activeFile === `snapshot:${snapshotId}`) _activeFile = null;
+  persistCurrentSession();
   renderResumeFileList(_directoryFiles, _directoryName, _directoryCanRefresh);
 }
 
@@ -668,7 +726,7 @@ function renameMarkdownSnapshot(snapshotId) {
     onSubmit: (name) => {
       const sanitized = sanitizeFileName(name).replace(/\.md$/i, "");
       if (!sanitized) return;
-      snapshot.name = `${sanitized}.md`;
+      snapshot.name = sanitized;
       localStorage.setItem(MD_SNAPSHOTS_KEY, JSON.stringify(snapshots));
       renderResumeFileList(_directoryFiles, _directoryName, _directoryCanRefresh);
     },
@@ -1181,7 +1239,7 @@ function renderResumeFileList(files, directoryName, canRefresh) {
   ));
   const snapshots = loadMarkdownSnapshots().sort(sortPinnedFirst(
     (snapshot) => getResumePinKey("snapshot", snapshot.id),
-    (a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0)
+    (a, b) => new Date(b.updatedAt || b.createdAt || 0) - new Date(a.updatedAt || a.createdAt || 0)
   ));
 
   if (list) {
@@ -1238,10 +1296,7 @@ function renderResumeFileList(files, directoryName, canRefresh) {
       });
       li.appendChild(deleteButton);
 
-      const handle = {
-        getFile: async () => new File([snapshot.markdown], snapshot.name, { type: "text/markdown" }),
-      };
-      li.addEventListener("click", () => loadResumeFromHandle(snapshot.name, handle, versionKey));
+      li.addEventListener("click", () => loadSavedCopy(snapshot.id));
       list.appendChild(li);
     }
 
@@ -1321,21 +1376,23 @@ async function collectResumeFiles(directory, prefix, files) {
  * @param {string} name
  * @param {FileSystemFileHandle} handle
  */
-async function loadResumeFromHandle(name, handle, versionKey = name) {
-  // Warn if dirty
-  if (isDirty()) {
-    const confirmed = await new Promise((resolve) => {
-      showDialog({
-        title: "有未保存的修改",
-        message: "切换简历将丢失当前未保存的修改，是否继续？",
-        buttons: [
-          { text: "取消",    action: () => resolve(false) },
-          { text: "继续切换", primary: true, action: () => resolve(true) },
-        ],
-      });
+async function confirmResumeSwitch() {
+  syncFocusedEditor();
+  if (!isDirty()) return true;
+  return new Promise((resolve) => {
+    showDialog({
+      title: "有未保存的修改",
+      message: "切换简历将丢弃当前未保存到副本的修改。请取消并保存，或确认放弃修改。",
+      buttons: [
+        { text: "取消", action: () => resolve(false) },
+        { text: "放弃修改并切换", action: () => resolve(true) },
+      ],
     });
-    if (!confirmed) return;
-  }
+  });
+}
+
+async function loadResumeFromHandle(name, handle, versionKey = name) {
+  if (!await confirmResumeSwitch()) return;
 
   try {
     const file = await handle.getFile();
@@ -1356,6 +1413,7 @@ async function loadResumeFromHandle(name, handle, versionKey = name) {
 
       // Mark active
       _activeFile = versionKey;
+      persistCurrentSession();
       document.querySelectorAll(".resume-list-item").forEach((li) => {
         li.classList.toggle("active", li.dataset.versionKey === versionKey);
       });
@@ -1430,6 +1488,8 @@ function initThemeSwitcher() {
   if (!btnA || !btnB || !page) return;
 
   function setTheme(theme) {
+    const state = getState();
+    state.layout.theme = theme;
     page.dataset.theme = theme;
     btnA.classList.toggle("toolbar-btn-active", theme === "a");
     btnB.classList.toggle("toolbar-btn-active", theme === "b");
@@ -1440,7 +1500,7 @@ function initThemeSwitcher() {
     }
     if (themeMenu) themeMenu.open = false;
     // Re-render header to reflect theme-specific contact format
-    const state = getState();
+    markDirty();
     if (typeof applyPhotoFrameSize === "function") applyPhotoFrameSize(state.photo);
     if (state.sections && state.sections.length > 0) {
       renderResume(state);
@@ -1606,10 +1666,7 @@ function handlePasteMarkdown() {
       const validation = validateAndBuildState(parseResult, "粘贴的 Markdown");
       closeDialog();
       if (validation.state) {
-        setState(validation.state);
-        renderResume(validation.state);
-        updateA4Status();
-        clearDirty();
+        activateImportedResume(validation.state);
       } else {
         const errorMsgs = validation.errors
           .filter((err) => err.level === "error")
@@ -1923,10 +1980,7 @@ function handleShowJsonExample() {
  */
 function handleJsonImportResult(result, fileName, rawJson) {
   if (result.state) {
-    setState(result.state);
-    renderResume(result.state);
-    updateA4Status();
-    clearDirty();
+    activateImportedResume(result.state);
   } else {
     const errorMsgs = result.errors
       .filter((err) => err.level === "error")

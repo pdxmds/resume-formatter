@@ -8,6 +8,7 @@
  * @param {object} state
  */
 function renderResume(state) {
+  if (typeof applyThemeState === "function") applyThemeState(state);
   renderHeader(state);
   renderSections(state);
   if (typeof applyLayoutState === "function") applyLayoutState(state);

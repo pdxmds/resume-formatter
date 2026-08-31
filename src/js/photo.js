@@ -191,9 +191,10 @@ function applyPhotoTransform(photo) {
   if (!container) return;
   const img = container.querySelector("img");
   if (!img) return;
-  const offsetX = pxToMm(Number(photo && photo.offsetX) || 0);
-  const offsetY = pxToMm(Number(photo && photo.offsetY) || 0);
-  const scale = Math.max(0.1, Number(photo && photo.scale) || 1);
+  const offsetX = pxToMm(Number(photo && photo.offsetX) || 0) + (Number(photo && photo.frameOffsetX) || 0);
+  const offsetY = pxToMm(Number(photo && photo.offsetY) || 0) + (Number(photo && photo.frameOffsetY) || 0);
+  const photoScale = Math.max(0.4, Math.min(2, Number(photo && photo.frameScale) || 1));
+  const scale = Math.max(0.1, Number(photo && photo.scale) || 1) * photoScale;
   img.style.setProperty("--photo-image-offset-x", `${offsetX.toFixed(4)}mm`);
   img.style.setProperty("--photo-image-offset-y", `${offsetY.toFixed(4)}mm`);
   img.style.setProperty("--photo-image-scale", String(scale));
@@ -202,11 +203,12 @@ function applyPhotoTransform(photo) {
 function applyPhotoFrameSize(photo) {
   const page = document.getElementById("resume-page");
   if (!page) return;
-  const baseWidth = 26;
-  const baseHeight = 35;
   const frameScale = Math.max(0.4, Math.min(2, Number(photo && photo.frameScale) || 1));
-  page.style.setProperty("--photo-w", `${(baseWidth * frameScale).toFixed(2)}mm`);
-  page.style.setProperty("--photo-h", `${(baseHeight * frameScale).toFixed(2)}mm`);
+  // The toolbar scales the picture inside a fixed frame, never the resume flow.
+  // Override dimensions left in HTML saved by older versions.
+  page.style.setProperty("--photo-w", "28mm");
+  page.style.setProperty("--photo-h", "38mm");
+  applyPhotoTransform(photo);
 
   const input = document.getElementById("photo-size-slider");
   const output = document.getElementById("photo-size-value");
@@ -216,27 +218,16 @@ function applyPhotoFrameSize(photo) {
 }
 
 function applyPhotoFramePosition(photo) {
-  const page = document.getElementById("resume-page");
-  if (!page) return;
-  const x = Number(photo && photo.frameOffsetX) || 0;
-  const y = Number(photo && photo.frameOffsetY) || 0;
-  page.style.setProperty("--photo-frame-offset-x", `${x}mm`);
-  page.style.setProperty("--photo-frame-offset-y", `${y}mm`);
+  // Keep legacy movement values, but apply them to the picture inside the frame.
+  applyPhotoTransform(photo);
 }
 
-/** Freeze the on-screen photo frame geometry for the print layout. */
+/** CSS anchors the photo to the same heading divider on screen and in print. */
 function preparePhotoForPrint() {
   const page = document.getElementById("resume-page");
-  const container = document.getElementById("photo-container");
-  if (!page || !container || container.dataset.empty === "true") return;
-
-  const pageRect = page.getBoundingClientRect();
-  const frameRect = container.getBoundingClientRect();
-  page.classList.add("photo-print-prepared");
-  page.style.setProperty("--photo-print-x", `${pxToMm(frameRect.left - pageRect.left).toFixed(4)}mm`);
-  page.style.setProperty("--photo-print-y", `${pxToMm(frameRect.top - pageRect.top).toFixed(4)}mm`);
-  page.style.setProperty("--photo-print-w", `${pxToMm(frameRect.width).toFixed(4)}mm`);
-  page.style.setProperty("--photo-print-h", `${pxToMm(frameRect.height).toFixed(4)}mm`);
+  if (!page) return;
+  page.classList.remove("photo-print-prepared");
+  ["x", "y", "w", "h"].forEach(key => page.style.removeProperty(`--photo-print-${key}`));
 }
 
 function updatePhotoControls() {
@@ -307,7 +298,7 @@ function initPhotoDrag() {
   container.addEventListener("pointercancel", () => { dragging = false; });
 }
 
-/** Move the entire photo frame without changing its internal crop. */
+/** Move the picture within its fixed frame; preserve the existing saved offsets. */
 function initPhotoFrameDrag() {
   const container = document.getElementById("photo-container");
   if (!container) return;

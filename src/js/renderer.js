@@ -123,6 +123,10 @@ function renderHeader(state) {
 function renderSections(state) {
   const container = document.getElementById("resume-sections");
   if (!container) return;
+  // Keep the same photo element (and its upload/drag listeners) across rerenders.
+  const photo = document.getElementById("photo-container");
+  const header = document.getElementById("resume-header");
+  if (photo && header) header.appendChild(photo);
   container.innerHTML = "";
 
   state.sections.forEach((section) => {
@@ -151,6 +155,13 @@ function renderSections(state) {
     }
     container.appendChild(sectionEl);
   });
+
+  // Anchor to the first heading's divider without adding height to the text flow.
+  const photoHeading = container.querySelector(".section-heading");
+  if (photo && photoHeading) {
+    photoHeading.classList.add("photo-heading");
+    photoHeading.appendChild(photo);
+  }
 
   // Update side gutter after layout settles
   requestAnimationFrame(() => updateAddGutter(state));
@@ -184,7 +195,10 @@ function renderSection(section) {
   titleEl.dataset.sectionId = section.id;
   titleEl.dataset.empty = section.title ? "false" : "true";
   titleEl.setAttribute("aria-label", "编辑栏目标题");
-  sectionEl.appendChild(titleEl);
+  const headingEl = document.createElement("div");
+  headingEl.className = "section-heading";
+  headingEl.appendChild(titleEl);
+  sectionEl.appendChild(headingEl);
 
   if (section.type === "custom") {
     const deleteSectionButton = document.createElement("button");
@@ -516,8 +530,8 @@ function renderPhoto(state) {
   moveButton.className = "photo-frame-handle no-print";
   moveButton.type = "button";
   moveButton.textContent = "✥";
-  moveButton.title = "拖动照片框；双击恢复位置";
-  moveButton.setAttribute("aria-label", "移动照片框");
+  moveButton.title = "移动框内照片；双击恢复画面位置";
+  moveButton.setAttribute("aria-label", "移动照片画面");
   container.appendChild(moveButton);
 
   if (!photo.dataUrl) {
@@ -535,7 +549,7 @@ function renderPhoto(state) {
   const img = document.createElement("img");
   img.src = photo.dataUrl;
   img.style.width = "100%";
-  img.style.height = "auto";
+  img.style.height = "100%";
   img.draggable = false;
   container.appendChild(img);
   if (typeof applyPhotoTransform === "function") applyPhotoTransform(photo);

@@ -1661,10 +1661,10 @@ body {
   --font-size-contact: 10.5pt;
   --font-size-headline: 13pt;
   --layout-line-height: 1.57;
-  --photo-w: 26mm;
-  --photo-h: 35mm;
-  /* Reserve the maximum (200%) frame width so resizing cannot reflow contacts. */
-  --photo-slot-w: 52mm;
+  --photo-w: 28mm;
+  --photo-h: 38mm;
+  --photo-slot-w: 28mm;
+  --photo-gap: 4mm;
   --photo-frame-offset-x: 0mm;
   --photo-frame-offset-y: 0mm;
 }
@@ -1679,9 +1679,10 @@ body {
   position: relative;
   display: grid;
   grid-template-columns: minmax(0, 1fr) var(--photo-slot-w);
-  column-gap: 6mm;
+  column-gap: var(--photo-gap);
   align-items: start;
-  min-height: calc(var(--photo-h) + max(0mm, var(--photo-frame-offset-y)));
+  min-height: 0;
+  margin-top: 3mm;
   margin-bottom: 2mm;
   padding: 0;
   border-bottom: none;
@@ -1772,18 +1773,27 @@ body {
 
 #resume-page[data-theme] #photo-container {
   position: absolute;
-  right: calc(0mm - var(--photo-frame-offset-x));
-  grid-column: 2;
-  justify-self: end;
+  right: 0;
   width: var(--photo-w);
   height: var(--photo-h);
-  top: var(--photo-frame-offset-y);
+  top: auto;
+  bottom: var(--divider-width);
   transform: none;
+  overflow: hidden;
+}
+
+/* Fallback for an empty document with no section heading yet. */
+#resume-page[data-theme] #resume-header > #photo-container {
+  top: 0;
+  bottom: auto;
 }
 
 #resume-page[data-theme] #photo-container img {
   width: 100%;
-  height: auto;
+  height: 100%;
+  object-fit: cover;
+  object-position: center;
+  transform-origin: center;
   transform: translate(
     var(--photo-image-offset-x, 0mm),
     var(--photo-image-offset-y, 0mm)
@@ -1797,6 +1807,21 @@ body {
   margin: 0 0 0.35mm;
   padding: 0 0 0.2mm;
   letter-spacing: 0;
+}
+
+#resume-page[data-theme] .section-heading {
+  position: relative;
+  display: flow-root;
+  margin-bottom: 0.35mm;
+}
+
+#resume-page[data-theme] .section-heading .section-title {
+  margin-bottom: 0;
+}
+
+#resume-page[data-theme] .photo-heading .section-title {
+  box-sizing: border-box;
+  padding-right: calc(var(--photo-slot-w) + var(--photo-gap));
 }
 
 #resume-page[data-theme] .resume-entry { margin-bottom: var(--entry-gap); }
@@ -2164,27 +2189,9 @@ body {
     border: 0 !important;
   }
 
-  #resume-page[data-theme] #photo-container {
-    right: calc(0mm - var(--photo-frame-offset-x)) !important;
-    top: var(--photo-frame-offset-y) !important;
-    transform: none !important;
-  }
-
-  #resume-page[data-theme].photo-print-prepared #resume-header {
-    position: static !important;
-  }
-
-  #resume-page[data-theme].photo-print-prepared #photo-container {
-    left: var(--photo-print-x) !important;
-    top: var(--photo-print-y) !important;
-    right: auto !important;
-    width: var(--photo-print-w) !important;
-    height: var(--photo-print-h) !important;
-  }
-
   #resume-page[data-theme] #photo-container img {
     width: 100% !important;
-    height: auto !important;
+    height: 100% !important;
     transform: translate(
       var(--photo-image-offset-x, 0mm),
       var(--photo-image-offset-y, 0mm)
@@ -2240,7 +2247,7 @@ body {
           </label>
           <label class="toolbar-control">
             <span>照片 <output id="photo-size-value">100%</output></span>
-            <input type="range" id="photo-size-slider" class="toolbar-range" min="40" max="200" step="5" value="100" title="等比例调整照片框大小">
+            <input type="range" id="photo-size-slider" class="toolbar-range" min="40" max="200" step="5" value="100" title="缩放框内照片（不改变版面）">
           </label>
         </div>
         <div class="selection-format-controls" aria-label="选区格式">
@@ -4654,6 +4661,10 @@ function renderHeader(state) {
 function renderSections(state) {
   const container = document.getElementById("resume-sections");
   if (!container) return;
+  // Keep the same photo element (and its upload/drag listeners) across rerenders.
+  const photo = document.getElementById("photo-container");
+  const header = document.getElementById("resume-header");
+  if (photo && header) header.appendChild(photo);
   container.innerHTML = "";
 
   state.sections.forEach((section) => {
@@ -4682,6 +4693,13 @@ function renderSections(state) {
     }
     container.appendChild(sectionEl);
   });
+
+  // Anchor to the first heading's divider without adding height to the text flow.
+  const photoHeading = container.querySelector(".section-heading");
+  if (photo && photoHeading) {
+    photoHeading.classList.add("photo-heading");
+    photoHeading.appendChild(photo);
+  }
 
   // Update side gutter after layout settles
   requestAnimationFrame(() => updateAddGutter(state));
@@ -4715,7 +4733,10 @@ function renderSection(section) {
   titleEl.dataset.sectionId = section.id;
   titleEl.dataset.empty = section.title ? "false" : "true";
   titleEl.setAttribute("aria-label", "编辑栏目标题");
-  sectionEl.appendChild(titleEl);
+  const headingEl = document.createElement("div");
+  headingEl.className = "section-heading";
+  headingEl.appendChild(titleEl);
+  sectionEl.appendChild(headingEl);
 
   if (section.type === "custom") {
     const deleteSectionButton = document.createElement("button");
@@ -5047,8 +5068,8 @@ function renderPhoto(state) {
   moveButton.className = "photo-frame-handle no-print";
   moveButton.type = "button";
   moveButton.textContent = "✥";
-  moveButton.title = "拖动照片框；双击恢复位置";
-  moveButton.setAttribute("aria-label", "移动照片框");
+  moveButton.title = "移动框内照片；双击恢复画面位置";
+  moveButton.setAttribute("aria-label", "移动照片画面");
   container.appendChild(moveButton);
 
   if (!photo.dataUrl) {
@@ -5066,7 +5087,7 @@ function renderPhoto(state) {
   const img = document.createElement("img");
   img.src = photo.dataUrl;
   img.style.width = "100%";
-  img.style.height = "auto";
+  img.style.height = "100%";
   img.draggable = false;
   container.appendChild(img);
   if (typeof applyPhotoTransform === "function") applyPhotoTransform(photo);
@@ -7608,9 +7629,10 @@ function applyPhotoTransform(photo) {
   if (!container) return;
   const img = container.querySelector("img");
   if (!img) return;
-  const offsetX = pxToMm(Number(photo && photo.offsetX) || 0);
-  const offsetY = pxToMm(Number(photo && photo.offsetY) || 0);
-  const scale = Math.max(0.1, Number(photo && photo.scale) || 1);
+  const offsetX = pxToMm(Number(photo && photo.offsetX) || 0) + (Number(photo && photo.frameOffsetX) || 0);
+  const offsetY = pxToMm(Number(photo && photo.offsetY) || 0) + (Number(photo && photo.frameOffsetY) || 0);
+  const photoScale = Math.max(0.4, Math.min(2, Number(photo && photo.frameScale) || 1));
+  const scale = Math.max(0.1, Number(photo && photo.scale) || 1) * photoScale;
   img.style.setProperty("--photo-image-offset-x", `${offsetX.toFixed(4)}mm`);
   img.style.setProperty("--photo-image-offset-y", `${offsetY.toFixed(4)}mm`);
   img.style.setProperty("--photo-image-scale", String(scale));
@@ -7619,11 +7641,12 @@ function applyPhotoTransform(photo) {
 function applyPhotoFrameSize(photo) {
   const page = document.getElementById("resume-page");
   if (!page) return;
-  const baseWidth = 26;
-  const baseHeight = 35;
   const frameScale = Math.max(0.4, Math.min(2, Number(photo && photo.frameScale) || 1));
-  page.style.setProperty("--photo-w", `${(baseWidth * frameScale).toFixed(2)}mm`);
-  page.style.setProperty("--photo-h", `${(baseHeight * frameScale).toFixed(2)}mm`);
+  // The toolbar scales the picture inside a fixed frame, never the resume flow.
+  // Override dimensions left in HTML saved by older versions.
+  page.style.setProperty("--photo-w", "28mm");
+  page.style.setProperty("--photo-h", "38mm");
+  applyPhotoTransform(photo);
 
   const input = document.getElementById("photo-size-slider");
   const output = document.getElementById("photo-size-value");
@@ -7633,27 +7656,16 @@ function applyPhotoFrameSize(photo) {
 }
 
 function applyPhotoFramePosition(photo) {
-  const page = document.getElementById("resume-page");
-  if (!page) return;
-  const x = Number(photo && photo.frameOffsetX) || 0;
-  const y = Number(photo && photo.frameOffsetY) || 0;
-  page.style.setProperty("--photo-frame-offset-x", `${x}mm`);
-  page.style.setProperty("--photo-frame-offset-y", `${y}mm`);
+  // Keep legacy movement values, but apply them to the picture inside the frame.
+  applyPhotoTransform(photo);
 }
 
-/** Freeze the on-screen photo frame geometry for the print layout. */
+/** CSS anchors the photo to the same heading divider on screen and in print. */
 function preparePhotoForPrint() {
   const page = document.getElementById("resume-page");
-  const container = document.getElementById("photo-container");
-  if (!page || !container || container.dataset.empty === "true") return;
-
-  const pageRect = page.getBoundingClientRect();
-  const frameRect = container.getBoundingClientRect();
-  page.classList.add("photo-print-prepared");
-  page.style.setProperty("--photo-print-x", `${pxToMm(frameRect.left - pageRect.left).toFixed(4)}mm`);
-  page.style.setProperty("--photo-print-y", `${pxToMm(frameRect.top - pageRect.top).toFixed(4)}mm`);
-  page.style.setProperty("--photo-print-w", `${pxToMm(frameRect.width).toFixed(4)}mm`);
-  page.style.setProperty("--photo-print-h", `${pxToMm(frameRect.height).toFixed(4)}mm`);
+  if (!page) return;
+  page.classList.remove("photo-print-prepared");
+  ["x", "y", "w", "h"].forEach(key => page.style.removeProperty(`--photo-print-${key}`));
 }
 
 function updatePhotoControls() {
@@ -7724,7 +7736,7 @@ function initPhotoDrag() {
   container.addEventListener("pointercancel", () => { dragging = false; });
 }
 
-/** Move the entire photo frame without changing its internal crop. */
+/** Move the picture within its fixed frame; preserve the existing saved offsets. */
 function initPhotoFrameDrag() {
   const container = document.getElementById("photo-container");
   if (!container) return;

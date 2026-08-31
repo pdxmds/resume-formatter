@@ -80,27 +80,9 @@
     border: 0 !important;
   }
 
-  #resume-page[data-theme] #photo-container {
-    right: calc(0mm - var(--photo-frame-offset-x)) !important;
-    top: var(--photo-frame-offset-y) !important;
-    transform: none !important;
-  }
-
-  #resume-page[data-theme].photo-print-prepared #resume-header {
-    position: static !important;
-  }
-
-  #resume-page[data-theme].photo-print-prepared #photo-container {
-    left: var(--photo-print-x) !important;
-    top: var(--photo-print-y) !important;
-    right: auto !important;
-    width: var(--photo-print-w) !important;
-    height: var(--photo-print-h) !important;
-  }
-
   #resume-page[data-theme] #photo-container img {
     width: 100% !important;
-    height: auto !important;
+    height: 100% !important;
     transform: translate(
       var(--photo-image-offset-x, 0mm),
       var(--photo-image-offset-y, 0mm)

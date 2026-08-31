@@ -705,10 +705,10 @@
   --font-size-contact: 10.5pt;
   --font-size-headline: 13pt;
   --layout-line-height: 1.57;
-  --photo-w: 26mm;
-  --photo-h: 35mm;
-  /* Reserve the maximum (200%) frame width so resizing cannot reflow contacts. */
-  --photo-slot-w: 52mm;
+  --photo-w: 28mm;
+  --photo-h: 38mm;
+  --photo-slot-w: 28mm;
+  --photo-gap: 4mm;
   --photo-frame-offset-x: 0mm;
   --photo-frame-offset-y: 0mm;
 }
@@ -723,9 +723,10 @@
   position: relative;
   display: grid;
   grid-template-columns: minmax(0, 1fr) var(--photo-slot-w);
-  column-gap: 6mm;
+  column-gap: var(--photo-gap);
   align-items: start;
-  min-height: calc(var(--photo-h) + max(0mm, var(--photo-frame-offset-y)));
+  min-height: 0;
+  margin-top: 3mm;
   margin-bottom: 2mm;
   padding: 0;
   border-bottom: none;
@@ -816,18 +817,27 @@
 
 #resume-page[data-theme] #photo-container {
   position: absolute;
-  right: calc(0mm - var(--photo-frame-offset-x));
-  grid-column: 2;
-  justify-self: end;
+  right: 0;
   width: var(--photo-w);
   height: var(--photo-h);
-  top: var(--photo-frame-offset-y);
+  top: auto;
+  bottom: var(--divider-width);
   transform: none;
+  overflow: hidden;
+}
+
+/* Fallback for an empty document with no section heading yet. */
+#resume-page[data-theme] #resume-header > #photo-container {
+  top: 0;
+  bottom: auto;
 }
 
 #resume-page[data-theme] #photo-container img {
   width: 100%;
-  height: auto;
+  height: 100%;
+  object-fit: cover;
+  object-position: center;
+  transform-origin: center;
   transform: translate(
     var(--photo-image-offset-x, 0mm),
     var(--photo-image-offset-y, 0mm)
@@ -841,6 +851,21 @@
   margin: 0 0 0.35mm;
   padding: 0 0 0.2mm;
   letter-spacing: 0;
+}
+
+#resume-page[data-theme] .section-heading {
+  position: relative;
+  display: flow-root;
+  margin-bottom: 0.35mm;
+}
+
+#resume-page[data-theme] .section-heading .section-title {
+  margin-bottom: 0;
+}
+
+#resume-page[data-theme] .photo-heading .section-title {
+  box-sizing: border-box;
+  padding-right: calc(var(--photo-slot-w) + var(--photo-gap));
 }
 
 #resume-page[data-theme] .resume-entry { margin-bottom: var(--entry-gap); }

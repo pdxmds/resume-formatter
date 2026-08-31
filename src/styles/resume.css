@@ -718,7 +718,7 @@
   display: grid;
   grid-template-columns: minmax(0, 1fr) var(--photo-w);
   column-gap: 6mm;
-  align-items: center;
+  align-items: start;
   min-height: calc(var(--photo-h) + max(0mm, var(--photo-frame-offset-y)));
   margin-bottom: 2mm;
   padding: 0;
@@ -728,26 +728,23 @@
 #resume-page[data-theme] #header-info {
   grid-column: 1;
   min-width: 0;
-  min-height: var(--photo-h);
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) fit-content(35%);
-  column-gap: 6mm;
-  align-items: center;
+  display: block;
+  margin-bottom: max(0mm, var(--header-offset-y, 0mm));
   text-align: left;
-  padding: 2mm 0;
+  padding: 0;
 }
 
 #resume-page[data-theme] #profile-name {
-  grid-column: 2;
-  grid-row: 1;
   display: block;
   min-width: 0;
-  font-size: 24pt;
-  font-weight: 700;
-  margin: 0;
-  letter-spacing: 1mm;
-  line-height: 1.12;
-  text-align: center;
+  font-size: 22pt;
+  font-weight: 400;
+  margin: 0 0 1.5mm;
+  padding: 0 0 1mm;
+  border-bottom: 0.75mm solid #0070c0;
+  letter-spacing: 2mm;
+  line-height: 1.2;
+  text-align: left;
   white-space: normal;
   overflow-wrap: anywhere;
   color: #111;
@@ -756,12 +753,10 @@
 #resume-page[data-theme] #profile-headline { display: none; }
 
 #resume-page[data-theme] #contact-info {
-  grid-column: 1;
-  grid-row: 1;
   min-width: 0;
   display: grid;
-  grid-template-columns: minmax(0, 0.85fr) minmax(0, 1.15fr);
-  gap: 2.5mm 4mm;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 2mm 5mm;
   align-items: center;
   justify-content: start;
   margin: 0;
@@ -966,6 +961,41 @@
 
 #resume-page[data-theme] .resume-section[data-section-type="education"] .entry-bullets .bullet-item::before {
   content: none;
+}
+
+/* The three standard sections share a left date column. Custom blocks keep
+   their original layout; long names and roles wrap inside their own column. */
+#resume-page[data-theme] .resume-section .entry-header[data-entry-layout] {
+  grid-template-columns: 33mm minmax(0, 1fr) minmax(0, 1fr);
+  column-gap: 4mm;
+}
+
+#resume-page[data-theme] .resume-section .entry-header[data-entry-layout="projects"] {
+  grid-template-columns: 33mm minmax(0, 1.5fr) minmax(0, 1fr);
+}
+
+#resume-page[data-theme] .entry-header[data-entry-layout] [data-entry-column] {
+  grid-row: 1;
+  justify-self: stretch;
+  min-width: 0;
+  margin: 0;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+#resume-page[data-theme] .entry-header[data-entry-layout] [data-entry-column="1"] {
+  grid-column: 1;
+  text-align: left;
+}
+
+#resume-page[data-theme] .entry-header[data-entry-layout] [data-entry-column="2"] {
+  grid-column: 2;
+  text-align: center;
+}
+
+#resume-page[data-theme] .entry-header[data-entry-layout] [data-entry-column="3"] {
+  grid-column: 3;
+  text-align: right;
 }
 
 /* Measurement mode mirrors printable flow without disabling editor controls. */

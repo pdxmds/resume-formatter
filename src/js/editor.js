@@ -703,7 +703,7 @@ function setHeaderOffsetPreview(offsetMm) {
   if (value) value.textContent = `${offsetMm.toFixed(1)} mm`;
   if (handle) {
     handle.setAttribute("aria-valuenow", String(offsetMm));
-    handle.setAttribute("aria-valuetext", offsetMm === 0 ? "居中" : `${Math.abs(offsetMm).toFixed(1)} 毫米${offsetMm < 0 ? "向上" : "向下"}`);
+    handle.setAttribute("aria-valuetext", offsetMm === 0 ? "默认位置" : `${Math.abs(offsetMm).toFixed(1)} 毫米${offsetMm < 0 ? "向上" : "向下"}`);
   }
 }
 

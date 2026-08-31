@@ -1674,7 +1674,7 @@ body {
   display: grid;
   grid-template-columns: minmax(0, 1fr) var(--photo-w);
   column-gap: 6mm;
-  align-items: center;
+  align-items: start;
   min-height: calc(var(--photo-h) + max(0mm, var(--photo-frame-offset-y)));
   margin-bottom: 2mm;
   padding: 0;
@@ -1684,26 +1684,23 @@ body {
 #resume-page[data-theme] #header-info {
   grid-column: 1;
   min-width: 0;
-  min-height: var(--photo-h);
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) fit-content(35%);
-  column-gap: 6mm;
-  align-items: center;
+  display: block;
+  margin-bottom: max(0mm, var(--header-offset-y, 0mm));
   text-align: left;
-  padding: 2mm 0;
+  padding: 0;
 }
 
 #resume-page[data-theme] #profile-name {
-  grid-column: 2;
-  grid-row: 1;
   display: block;
   min-width: 0;
-  font-size: 24pt;
-  font-weight: 700;
-  margin: 0;
-  letter-spacing: 1mm;
-  line-height: 1.12;
-  text-align: center;
+  font-size: 22pt;
+  font-weight: 400;
+  margin: 0 0 1.5mm;
+  padding: 0 0 1mm;
+  border-bottom: 0.75mm solid #0070c0;
+  letter-spacing: 2mm;
+  line-height: 1.2;
+  text-align: left;
   white-space: normal;
   overflow-wrap: anywhere;
   color: #111;
@@ -1712,12 +1709,10 @@ body {
 #resume-page[data-theme] #profile-headline { display: none; }
 
 #resume-page[data-theme] #contact-info {
-  grid-column: 1;
-  grid-row: 1;
   min-width: 0;
   display: grid;
-  grid-template-columns: minmax(0, 0.85fr) minmax(0, 1.15fr);
-  gap: 2.5mm 4mm;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 2mm 5mm;
   align-items: center;
   justify-content: start;
   margin: 0;
@@ -1922,6 +1917,41 @@ body {
 
 #resume-page[data-theme] .resume-section[data-section-type="education"] .entry-bullets .bullet-item::before {
   content: none;
+}
+
+/* The three standard sections share a left date column. Custom blocks keep
+   their original layout; long names and roles wrap inside their own column. */
+#resume-page[data-theme] .resume-section .entry-header[data-entry-layout] {
+  grid-template-columns: 33mm minmax(0, 1fr) minmax(0, 1fr);
+  column-gap: 4mm;
+}
+
+#resume-page[data-theme] .resume-section .entry-header[data-entry-layout="projects"] {
+  grid-template-columns: 33mm minmax(0, 1.5fr) minmax(0, 1fr);
+}
+
+#resume-page[data-theme] .entry-header[data-entry-layout] [data-entry-column] {
+  grid-row: 1;
+  justify-self: stretch;
+  min-width: 0;
+  margin: 0;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+#resume-page[data-theme] .entry-header[data-entry-layout] [data-entry-column="1"] {
+  grid-column: 1;
+  text-align: left;
+}
+
+#resume-page[data-theme] .entry-header[data-entry-layout] [data-entry-column="2"] {
+  grid-column: 2;
+  text-align: center;
+}
+
+#resume-page[data-theme] .entry-header[data-entry-layout] [data-entry-column="3"] {
+  grid-column: 3;
+  text-align: right;
 }
 
 /* Measurement mode mirrors printable flow without disabling editor controls. */
@@ -2276,7 +2306,7 @@ body {
           <header id="resume-header">
             <div id="header-info">
               <button id="header-position-handle" class="header-position-handle no-print" type="button"
-                title="上下拖动姓名区域；双击恢复居中" aria-label="上下调整姓名区域位置">
+                title="上下拖动个人信息区域；双击恢复默认位置" aria-label="上下调整个人信息区域位置">
                 <span aria-hidden="true">↕</span>
                 <span class="header-position-value" aria-hidden="true">0.0 mm</span>
               </button>
@@ -4721,7 +4751,7 @@ function renderSection(section) {
 
   // Other sections — no inline add button, gutter handles it
   for (const entry of section.entries) {
-    sectionEl.appendChild(renderEntry(entry, section.type === "experience" ? section.id : ""));
+    sectionEl.appendChild(renderEntry(entry, section.type === "experience" ? section.id : "", section.type));
   }
 
   return sectionEl;
@@ -4793,9 +4823,10 @@ function renderCustomBlockActions(sectionId) {
  * Render a single entry with delete button.
  * @param {object} entry
  * @param {string} [reorderSectionId]
+ * @param {string} [sectionType]
  * @returns {HTMLElement}
  */
-function renderEntry(entry, reorderSectionId = "") {
+function renderEntry(entry, reorderSectionId = "", sectionType = "") {
   const entryEl = document.createElement("div");
   entryEl.className = "resume-entry";
   entryEl.dataset.entryId = entry.id;
@@ -4818,6 +4849,11 @@ function renderEntry(entry, reorderSectionId = "") {
 
   const leftEl = document.createElement("div");
   leftEl.className = "entry-left";
+  const labels = {
+    education: { name: "学校", role: "专业" },
+    projects: { name: "项目名称", role: "负责人" },
+    experience: { name: "公司", role: "职位" },
+  }[sectionType];
 
   const nameSpan = document.createElement("span");
   nameSpan.className = "entry-name";
@@ -4825,9 +4861,8 @@ function renderEntry(entry, reorderSectionId = "") {
   nameSpan.contentEditable = "plaintext-only";
   nameSpan.dataset.entryField = "name";
   nameSpan.dataset.empty = entry.name ? "false" : "true";
-  nameSpan.dataset.placeholder = "名称";
-  nameSpan.setAttribute("aria-label", "编辑条目名称");
-  leftEl.appendChild(nameSpan);
+  nameSpan.dataset.placeholder = labels ? labels.name : "名称";
+  nameSpan.setAttribute("aria-label", labels ? `编辑${labels.name}` : "编辑条目名称");
 
   const roleSpan = document.createElement("span");
   roleSpan.className = "entry-role";
@@ -4835,11 +4870,8 @@ function renderEntry(entry, reorderSectionId = "") {
   roleSpan.contentEditable = "plaintext-only";
   roleSpan.dataset.entryField = "role";
   roleSpan.dataset.empty = entry.role ? "false" : "true";
-  roleSpan.dataset.placeholder = "角色或说明";
-  roleSpan.setAttribute("aria-label", "编辑角色或说明");
-  leftEl.appendChild(roleSpan);
-
-  headerEl.appendChild(leftEl);
+  roleSpan.dataset.placeholder = labels ? labels.role : "角色或说明";
+  roleSpan.setAttribute("aria-label", labels ? `编辑${labels.role}` : "编辑角色或说明");
 
   const dateLocSpan = document.createElement("span");
   dateLocSpan.className = "entry-date-location";
@@ -4853,7 +4885,23 @@ function renderEntry(entry, reorderSectionId = "") {
   dateSpan.dataset.placeholder = "起止日期";
   dateSpan.setAttribute("aria-label", "编辑起止日期");
   dateLocSpan.appendChild(dateSpan);
-  headerEl.appendChild(dateLocSpan);
+
+  // Match visual, keyboard and copied-text order without swapping stored fields.
+  if (labels) {
+    headerEl.dataset.entryLayout = sectionType;
+    const ordered = sectionType === "experience"
+      ? [dateLocSpan, roleSpan, nameSpan]
+      : [dateLocSpan, nameSpan, roleSpan];
+    ordered.forEach((element, index) => {
+      element.dataset.entryColumn = String(index + 1);
+      headerEl.appendChild(element);
+    });
+  } else {
+    leftEl.appendChild(nameSpan);
+    leftEl.appendChild(roleSpan);
+    headerEl.appendChild(leftEl);
+    headerEl.appendChild(dateLocSpan);
+  }
 
   // Delete entry button
   const delBtn = document.createElement("button");
@@ -5833,7 +5881,7 @@ function setHeaderOffsetPreview(offsetMm) {
   if (value) value.textContent = `${offsetMm.toFixed(1)} mm`;
   if (handle) {
     handle.setAttribute("aria-valuenow", String(offsetMm));
-    handle.setAttribute("aria-valuetext", offsetMm === 0 ? "居中" : `${Math.abs(offsetMm).toFixed(1)} 毫米${offsetMm < 0 ? "向上" : "向下"}`);
+    handle.setAttribute("aria-valuetext", offsetMm === 0 ? "默认位置" : `${Math.abs(offsetMm).toFixed(1)} 毫米${offsetMm < 0 ? "向上" : "向下"}`);
   }
 }
 

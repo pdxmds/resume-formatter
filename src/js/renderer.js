@@ -226,7 +226,7 @@ function renderSection(section) {
 
   // Other sections — no inline add button, gutter handles it
   for (const entry of section.entries) {
-    sectionEl.appendChild(renderEntry(entry, section.type === "experience" ? section.id : ""));
+    sectionEl.appendChild(renderEntry(entry, section.type === "experience" ? section.id : "", section.type));
   }
 
   return sectionEl;
@@ -298,9 +298,10 @@ function renderCustomBlockActions(sectionId) {
  * Render a single entry with delete button.
  * @param {object} entry
  * @param {string} [reorderSectionId]
+ * @param {string} [sectionType]
  * @returns {HTMLElement}
  */
-function renderEntry(entry, reorderSectionId = "") {
+function renderEntry(entry, reorderSectionId = "", sectionType = "") {
   const entryEl = document.createElement("div");
   entryEl.className = "resume-entry";
   entryEl.dataset.entryId = entry.id;
@@ -323,6 +324,11 @@ function renderEntry(entry, reorderSectionId = "") {
 
   const leftEl = document.createElement("div");
   leftEl.className = "entry-left";
+  const labels = {
+    education: { name: "学校", role: "专业" },
+    projects: { name: "项目名称", role: "负责人" },
+    experience: { name: "公司", role: "职位" },
+  }[sectionType];
 
   const nameSpan = document.createElement("span");
   nameSpan.className = "entry-name";
@@ -330,9 +336,8 @@ function renderEntry(entry, reorderSectionId = "") {
   nameSpan.contentEditable = "plaintext-only";
   nameSpan.dataset.entryField = "name";
   nameSpan.dataset.empty = entry.name ? "false" : "true";
-  nameSpan.dataset.placeholder = "名称";
-  nameSpan.setAttribute("aria-label", "编辑条目名称");
-  leftEl.appendChild(nameSpan);
+  nameSpan.dataset.placeholder = labels ? labels.name : "名称";
+  nameSpan.setAttribute("aria-label", labels ? `编辑${labels.name}` : "编辑条目名称");
 
   const roleSpan = document.createElement("span");
   roleSpan.className = "entry-role";
@@ -340,11 +345,8 @@ function renderEntry(entry, reorderSectionId = "") {
   roleSpan.contentEditable = "plaintext-only";
   roleSpan.dataset.entryField = "role";
   roleSpan.dataset.empty = entry.role ? "false" : "true";
-  roleSpan.dataset.placeholder = "角色或说明";
-  roleSpan.setAttribute("aria-label", "编辑角色或说明");
-  leftEl.appendChild(roleSpan);
-
-  headerEl.appendChild(leftEl);
+  roleSpan.dataset.placeholder = labels ? labels.role : "角色或说明";
+  roleSpan.setAttribute("aria-label", labels ? `编辑${labels.role}` : "编辑角色或说明");
 
   const dateLocSpan = document.createElement("span");
   dateLocSpan.className = "entry-date-location";
@@ -358,7 +360,23 @@ function renderEntry(entry, reorderSectionId = "") {
   dateSpan.dataset.placeholder = "起止日期";
   dateSpan.setAttribute("aria-label", "编辑起止日期");
   dateLocSpan.appendChild(dateSpan);
-  headerEl.appendChild(dateLocSpan);
+
+  // Match visual, keyboard and copied-text order without swapping stored fields.
+  if (labels) {
+    headerEl.dataset.entryLayout = sectionType;
+    const ordered = sectionType === "experience"
+      ? [dateLocSpan, roleSpan, nameSpan]
+      : [dateLocSpan, nameSpan, roleSpan];
+    ordered.forEach((element, index) => {
+      element.dataset.entryColumn = String(index + 1);
+      headerEl.appendChild(element);
+    });
+  } else {
+    leftEl.appendChild(nameSpan);
+    leftEl.appendChild(roleSpan);
+    headerEl.appendChild(leftEl);
+    headerEl.appendChild(dateLocSpan);
+  }
 
   // Delete entry button
   const delBtn = document.createElement("button");
